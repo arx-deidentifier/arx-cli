@@ -303,9 +303,10 @@ public class CommandLineInterface {
             try {
                 System.err.println(e.getLocalizedMessage());
                 parser.printHelpOn(System.out);
-                System.exit(0);
+                System.exit(1);
             } catch (final IOException e1) {
                 e1.printStackTrace();
+                System.exit(1);
             }
         }
 
@@ -320,6 +321,7 @@ public class CommandLineInterface {
                 parser.printHelpOn(System.out);
             } catch (IOException e1) {
                 e1.printStackTrace();
+                System.exit(1);
             }
         }
         System.out.println("DONE");
