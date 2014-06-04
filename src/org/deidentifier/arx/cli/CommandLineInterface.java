@@ -137,7 +137,7 @@ public class CommandLineInterface {
 
         if (input != null) { // read from file
             data = Data.create(input, separator);
-        } else if (database != null && database.length() > 0) { // read from db
+        } else if ((database != null) && (database.length() > 0)) { // read from db
             // TODO: Implement JDBC datasource
             throw new UnsupportedOperationException("import from database currently not supported");
         } else { // read from console
