@@ -17,10 +17,18 @@
  */
 package org.deidentifier.arx.cli;
 
+import java.io.File;
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -31,13 +39,16 @@ import org.deidentifier.arx.ARXConfiguration;
 import org.deidentifier.arx.ARXResult;
 import org.deidentifier.arx.AttributeType.Hierarchy;
 import org.deidentifier.arx.Data;
+import org.deidentifier.arx.DataSelector;
 import org.deidentifier.arx.DataSubset;
+import org.deidentifier.arx.DataType;
 import org.deidentifier.arx.criteria.DPresence;
 import org.deidentifier.arx.criteria.DistinctLDiversity;
 import org.deidentifier.arx.criteria.EntropyLDiversity;
 import org.deidentifier.arx.criteria.EqualDistanceTCloseness;
 import org.deidentifier.arx.criteria.HierarchicalDistanceTCloseness;
 import org.deidentifier.arx.criteria.KAnonymity;
+import org.deidentifier.arx.criteria.PrivacyCriterion;
 import org.deidentifier.arx.criteria.RecursiveCLDiversity;
 
 /**
@@ -49,38 +60,64 @@ import org.deidentifier.arx.criteria.RecursiveCLDiversity;
  */
 public class CommandLineInterface {
 
-    public static enum LDiversityVariant {
-        DISTINCT,
-        ENTROPY,
-        RECURSIVE;
-    }
+    /**
+     * --quasiidentifying [attributname1,attributname2,...]
+     * -qi
+     * 
+     * --sensitive [attributname1,attributname2,...]
+     * -se
+     * 
+     * --insensitive [attributname1,attributname2,...]
+     * -is
+     * 
+     * --identifying [attributname1,attributname2,...]
+     * -id
+     * 
+     * --hierarchies [attributname1=filename1,attributname2=filename2]
+     * -h
+     * 
+     * --datatype [attributname1=STRING|DECIMAL(format)|INTEGER|DATE(format)]
+     * -d
+     * 
+     * --criteria [x-ANONYMITY,(x,y)-PRESENCE,attributname1=DISTINCT|ENTROPY|RECURSIVE-(x|x,y)-DIVERSITY,attributname2=HIERARCHICAL|EQUALDISTANCE-(x)-CLOSENESS]
+     * -c
+     * 
+     * --metric [DM|DMSTAR|ENTROPY|HEIGHT|NMENTROPY|PREC|AECS]
+     * -m
+     * 
+     * --suppression [value]
+     * -s
+     * 
+     * --database [TYPE=[MYSQL|POSTGRESQL|SQLLITE],URL=value,PORT=value,USER=value,PASSWORD=value,DATABASE=value,TABLE=value]
+     * -db
+     * 
+     * --file [filename]
+     * -f
+     * 
+     * --output [filename]
+     * -o
+     * 
+     * --researchsubset [FILE=filename|QUERY=querystring]
+     * -r
+     * 
+     * --separator [char|DETECT]
+     * -sep
+     * 
+     * --practicalmonotonicity [TRUE|FALSE]
+     * -pm
+     * 
+     * 
+     */
 
     public static enum Metric {
+        AECS,
         DM,
         DMSTAR,
         ENTROPY,
         HEIGHT,
         NMENTROPY,
-        PREC,
-        AECS
+        PREC
     }
-
-    public static enum AttributeType {
-        QI,
-        IS,
-        SA,
-        ID
-    }
-
-    public static enum TClosenessVariant {
-        EMD_EQUAL,
-        EMD_HIERARCHICAL;
-    }
-
-    private String           output;
-    private char             separator;
-    private Data             data;
-    private ARXConfiguration config;
 
     /**
      * Lets do it!.
@@ -88,220 +125,394 @@ public class CommandLineInterface {
      * @param args the arguments
      */
     public static void main(final String[] args) {
-
-        System.out.println("Java Version: " + System.getProperty("java.version"));
         final CommandLineInterface cli = new CommandLineInterface();
+        cli.run(args);
+    }
 
+    private Data buildDataObject(final File input, final String database, final char separator) throws IOException {
+        // build data object
+        // TODO: currently only file input supported... Implement JDBC and Sysin
+        // TODO: for DataSource a addAllCoulumns could be introduced
+        final Data data = Data.create(input, separator);
+        return data;
+    }
+
+    private List<PrivacyCriterion> parseCriteria(final String criteriaOption, final Map<String, Hierarchy> hierarchies, final DataSubset subset) {
+        final List<PrivacyCriterion> criteria = new ArrayList<PrivacyCriterion>();
+
+        final String k_anonymityRegEx = "(\\d)-ANONYMITY";
+        final String d_presenceRegEx = "[(](\\d+.?\\d*),(\\d+.?\\d*)[)]-PRESENCE";
+        final String attributeNameRegEx = "(\\w*)=";
+        final String l_diversityRegEx = "-[(](\\d.?\\d?)[)]-DIVERSITY";
+        final String l_diversityRegEx_Recursive = "-[(](\\d.?\\d?),(\\d.?\\d?)[)]-DIVERSITY";
+        final String t_closenessRegEx = "-[(](\\d.?\\d?)[)]-CLOSENESS";
+
+        Pattern pattern = null;
+        Matcher matcher = null;
+
+        // add all k-anonymity criteria
+        pattern = Pattern.compile(k_anonymityRegEx, Pattern.CASE_INSENSITIVE);
+        matcher = pattern.matcher(criteriaOption);
+        while (matcher.find()) {
+            final int k = Integer.parseInt(matcher.group(1));
+            final PrivacyCriterion criterion = new KAnonymity(k);
+            criteria.add(criterion);
+        }
+
+        // add all d-presence criteria
+        pattern = Pattern.compile(d_presenceRegEx, Pattern.CASE_INSENSITIVE);
+        matcher = pattern.matcher(criteriaOption);
+        while (matcher.find()) {
+            if (subset == null) {
+                throw new IllegalArgumentException("for d-presence a subset has to be defined");
+            }
+            final double dmin = Double.parseDouble(matcher.group(1));
+            final double dmax = Double.parseDouble(matcher.group(2));
+            final PrivacyCriterion criterion = new DPresence(dmin, dmax, subset);
+            criteria.add(criterion);
+        }
+
+        // add all l-diversity criteria
+
+        // distinct
+        pattern = Pattern.compile(attributeNameRegEx + "DISTINCT" + l_diversityRegEx, Pattern.CASE_INSENSITIVE);
+        matcher = pattern.matcher(criteriaOption);
+        while (matcher.find()) {
+            final String attributeName = matcher.group(1);
+            final int l = Integer.parseInt(matcher.group(2));
+            final PrivacyCriterion criterion = new DistinctLDiversity(attributeName, l);
+            criteria.add(criterion);
+        }
+
+        // entropy
+        pattern = Pattern.compile(attributeNameRegEx + "ENTROPY" + l_diversityRegEx, Pattern.CASE_INSENSITIVE);
+        matcher = pattern.matcher(criteriaOption);
+        while (matcher.find()) {
+            final String attributeName = matcher.group(1);
+            final double l = Double.parseDouble(matcher.group(2));
+            final PrivacyCriterion criterion = new EntropyLDiversity(attributeName, l);
+            criteria.add(criterion);
+        }
+
+        // recursive
+        pattern = Pattern.compile(attributeNameRegEx + "RECURSIVE" + l_diversityRegEx_Recursive, Pattern.CASE_INSENSITIVE);
+        matcher = pattern.matcher(criteriaOption);
+        while (matcher.find()) {
+            final String attributeName = matcher.group(1);
+            final double c = Double.parseDouble(matcher.group(2));
+            final int l = Integer.parseInt(matcher.group(3));
+            final PrivacyCriterion criterion = new RecursiveCLDiversity(attributeName, c, l);
+            criteria.add(criterion);
+        }
+
+        // add all t-closeness criteria
+
+        // hierarchical
+        pattern = Pattern.compile(attributeNameRegEx + "HIERARCHICAL" + t_closenessRegEx, Pattern.CASE_INSENSITIVE);
+        matcher = pattern.matcher(criteriaOption);
+        while (matcher.find()) {
+            final String attributeName = matcher.group(1);
+            final Hierarchy h = hierarchies.get(attributeName);
+            if (h == null) {
+                throw new IllegalArgumentException("for hierarchical t-closeness a hierarchy has to be defined: " + attributeName);
+            }
+            final double t = Double.parseDouble(matcher.group(2));
+            final PrivacyCriterion criterion = new HierarchicalDistanceTCloseness(attributeName, t, h);
+            criteria.add(criterion);
+        }
+
+        // equal
+        pattern = Pattern.compile(attributeNameRegEx + "EQUALDISTANCE" + t_closenessRegEx, Pattern.CASE_INSENSITIVE);
+        matcher = pattern.matcher(criteriaOption);
+        while (matcher.find()) {
+            final String attributeName = matcher.group(1);
+            final double t = Double.parseDouble(matcher.group(2));
+            final PrivacyCriterion criterion = new EqualDistanceTCloseness(attributeName, t);
+            criteria.add(criterion);
+        }
+
+        return criteria;
+    }
+
+    private Map<String, DataType<?>> parseDataTypes(final List<String> datatypeOption) {
+        final Map<String, DataType<?>> datatypes = new HashMap<String, DataType<?>>();
+        for (final String type : datatypeOption) {
+            final String[] split = type.split("=");
+
+            final Pattern pattern = Pattern.compile("(\\w+)[(]?(.*)", Pattern.CASE_INSENSITIVE);
+            final Matcher matcher = pattern.matcher(split[1]);
+            while (matcher.find()) {
+                final String datatype = matcher.group(1).toUpperCase();
+                final String f = matcher.group(2);
+                String format = "";
+                if (f.length() > 0) {
+                    format = f.substring(0, f.length() - 1);
+                }
+                switch (datatype) {
+                case "STRING":
+                    datatypes.put(split[0], DataType.STRING);
+                    break;
+                case "INTEGER":
+                    datatypes.put(split[0], DataType.INTEGER);
+                    break;
+                case "DECIMAL":
+                    datatypes.put(split[0], DataType.createDecimal(format));
+                    break;
+                case "DATE":
+                    datatypes.put(split[0], DataType.createDate(format));
+                    break;
+                default:
+                    throw new IllegalArgumentException("datatype not recognized: " + datatype);
+                }
+            }
+        }
+        return datatypes;
+    }
+
+    private Map<String, Hierarchy> parseHierarchies(final String hierarchyOption, final char seperator) throws IOException {
+        final Map<String, Hierarchy> hierarchies = new HashMap<String, Hierarchy>();
+
+        // TODO: with the current implementation a filename is not allowed to contain ','
+
+        // different naming scheme?
+        // in windows the following charcters are not allowed in filenames:
+        // < > ? " : | \ / *
+        // String hiers2 = "attributname1=filename1/fed=te.csv:attributname2=filename2";
+
+        StringBuilder attributeName = new StringBuilder();
+        StringBuilder fileName = new StringBuilder();
+        boolean matchingAttributeName = true;
+        for (int i = 0; i < hierarchyOption.length(); i++) {
+            final char c = hierarchyOption.charAt(i);
+            if ((c == '=') && matchingAttributeName) {
+                matchingAttributeName = false;
+            } else if ((c == ',') && !matchingAttributeName) {
+                final Hierarchy h = Hierarchy.create(fileName.toString(), seperator);
+                hierarchies.put(attributeName.toString(), h);
+                matchingAttributeName = true;
+                attributeName = new StringBuilder();
+                fileName = new StringBuilder();
+            } else if (matchingAttributeName) {
+                attributeName.append(c);
+            } else if (!matchingAttributeName) {
+                fileName.append(c);
+            }
+        }
+        // put last found pair in map
+        if (attributeName.length() > 0) {
+            final Hierarchy h = Hierarchy.create(fileName.toString(), seperator);
+            hierarchies.put(attributeName.toString(), h);
+        }
+
+        return hierarchies;
+    }
+
+    private char parseSeparator(final String separatorOption) {
+        if (separatorOption.length() == 1) {
+            return separatorOption.charAt(0);
+        } else if (separatorOption.equalsIgnoreCase("DETECT")) {
+            // TODO: Implement automatic detection
+            throw new UnsupportedOperationException("automatic detection of seperator is currently not supported.");
+        } else {
+            throw new IllegalArgumentException("only a single character or the keyword 'DETECT' is allowed");
+        }
+    }
+
+    private DataSubset parseSubset(final String subsetOption, final char separator, final Data data) throws ParseException, IOException {
+
+        DataSubset subset = null;
+
+        if (subsetOption != null) {
+
+            final Pattern pattern = Pattern.compile("(\\w+)=(.*)", Pattern.CASE_INSENSITIVE);
+            final Matcher matcher = pattern.matcher(subsetOption);
+            while (matcher.find()) {
+                final String type = matcher.group(1).toUpperCase();
+                final String content = matcher.group(2);
+
+                switch (type) {
+                case "FILE":
+                    subset = DataSubset.create(data, Data.create(content, separator));
+                    break;
+                case "QUERY":
+                    final DataSelector selector = DataSelector.create(data, content);
+                    subset = DataSubset.create(data, selector);
+                    break;
+                default:
+                    throw new IllegalArgumentException("subset specification not recognized: " + type);
+                }
+            }
+        }
+
+        return subset;
+    }
+
+    private void run(final String[] args) {
         final OptionParser parser = new OptionParser();
 
-        // datasets
-        final OptionSpec<String> input = parser.accepts("i", "CSV input dataset filename").withRequiredArg().ofType(String.class).required();
-        final OptionSpec<String> output = parser.accepts("o", "CSV filename of the output").withRequiredArg().ofType(String.class).required();
-        final OptionSpec<String> seperator = parser.accepts("sep", "seperator of the input CSV; if omitted ';' is assumed").withRequiredArg().ofType(String.class).defaultsTo(";");
+        // define options
 
-        // data defintion
-        final OptionSpec<String> attributeName = parser.accepts("aName", "name of the attribute").withRequiredArg().ofType(String.class);
-        final OptionSpec<String> attributeType = parser.accepts("aType", "type of the attribute; possible values are " + Arrays.toString(AttributeType.values())).requiredIf(attributeName).withRequiredArg().ofType(String.class);
-        final OptionSpec<String> attributeHierarchy = parser.accepts("aHierarchy", "hierarchy file of the attribute").requiredIf(attributeName).withRequiredArg().ofType(String.class);
+        // attributes
+        final OptionSpec<String> qiOption = parser.acceptsAll(Arrays.asList("qi", "quasiidentifying"), "names of the quasi identifying attributes, delimited by ','").withRequiredArg().ofType(String.class).withValuesSeparatedBy(',');
+        final OptionSpec<String> seOption = parser.acceptsAll(Arrays.asList("se", "sensitive"), "names of the sensitive attributes, delimited by ','").withRequiredArg().ofType(String.class).withValuesSeparatedBy(',');
+        final OptionSpec<String> isOption = parser.acceptsAll(Arrays.asList("is", "insensitive"), "names of the insensitive attributes, delimited by ','").withRequiredArg().ofType(String.class).withValuesSeparatedBy(',');
+        final OptionSpec<String> idOption = parser.acceptsAll(Arrays.asList("id", "identifying"), "names of the identifying attributes, delimited by ','").withRequiredArg().ofType(String.class).withValuesSeparatedBy(',');
 
-        // TODO: currently only one criteria of each type is supported
+        // hierarchies
+        final OptionSpec<String> hierarchyOption = parser.acceptsAll(Arrays.asList("h", "hierarchies"), "hierarchies for the attributes, delimited by ','. Syntax: [attributname1=filename1,attributname2=filename2]").withRequiredArg().ofType(String.class);
 
-        // k_anonymity
-        final OptionSpec<String> k_anonymity = parser.accepts("kAnonymity", "specify if k-anonymity should be employed").withOptionalArg().ofType(String.class);
-        final OptionSpec<Integer> kValue = parser.accepts("kValue", "value of k").requiredIf(k_anonymity).withRequiredArg().ofType(Integer.class);
+        // datatypes
+        final OptionSpec<String> dataTypeOption = parser.acceptsAll(Arrays.asList("d", "datatype"), "datatypes of the attributes, delimited by ','. Syntax: [attributname1=STRING|DECIMAL(format)|INTEGER|DATE(format)]").withRequiredArg().ofType(String.class).withValuesSeparatedBy(',');
 
-        // d-presence
-        final OptionSpec<String> d_presence = parser.accepts("dPresence", "specify if d-presence should be employed").withOptionalArg().ofType(String.class);
-        final OptionSpec<Double> dMin = parser.accepts("dMin", "value of dmin for d-presence").requiredIf(d_presence).withRequiredArg().ofType(Double.class);
-        final OptionSpec<Double> dMax = parser.accepts("dMax", "value of dmax for d-presence").requiredIf(d_presence).withRequiredArg().ofType(Double.class);
-        final OptionSpec<String> subset = parser.accepts("subset", "subset file").requiredIf(d_presence).withRequiredArg().ofType(String.class);
-
-        // ldiversity
-        final OptionSpec<String> l_diversity = parser.accepts("lDiversity", "specify if l-diversity should be employed").withOptionalArg().ofType(String.class);
-        final OptionSpec<String> lAttribute = parser.accepts("lAttribute", "specifies the name(s) of the attribute(s) for this l-diversity criterion").requiredIf(l_diversity).withRequiredArg().ofType(String.class).withValuesSeparatedBy(',');
-        final OptionSpec<String> lVariant = parser.accepts("lVariant", "variant of l-diversity; possible values are " + Arrays.toString(LDiversityVariant.values())).requiredIf(l_diversity).withRequiredArg().ofType(String.class);
-        final OptionSpec<Double> lValue = parser.accepts("lValue", "value of l").requiredIf(l_diversity).withRequiredArg().ofType(Double.class);
-        final OptionSpec<Double> cValue = parser.accepts("cValue", "value of c").withRequiredArg().ofType(Double.class);
-
-        // tcloseness
-        final OptionSpec<String> t_closeness = parser.accepts("tCloseness", "specify if t-closeness should be employed").withOptionalArg().ofType(String.class);
-        final OptionSpec<String> tAttribute = parser.accepts("tAttribute", "specifies the name(s) of the attribute(s) for this t-clonseness criterion").requiredIf(t_closeness).withRequiredArg().ofType(String.class).withValuesSeparatedBy(',');
-        final OptionSpec<String> tVariant = parser.accepts("tVariant", "variant of t-closeness; possible values are " + Arrays.toString(TClosenessVariant.values())).requiredIf(t_closeness).withRequiredArg().ofType(String.class);
-        final OptionSpec<Double> tValue = parser.accepts("tValue", "value of t").requiredIf(t_closeness).withRequiredArg().ofType(Double.class);
-
-        // supression
-        final OptionSpec<Double> s = parser.accepts("s", "value of supression").withRequiredArg().ofType(Double.class).required();
+        // criteria
+        final OptionSpec<String> criteriaOption = parser.acceptsAll(Arrays.asList("c", "criteria"), "anonymization criteria, delimited by ','. Syntax: [x-ANONYMITY,(x,y)-PRESENCE,attributname1=DISTINCT|ENTROPY|RECURSIVE-(x|x,y)-DIVERSITY,attributname2=HIERARCHICAL|EQUALDISTANCE-(x)-CLOSENESS]").withRequiredArg().ofType(String.class);
 
         // metric
-        final OptionSpec<String> metric = parser.accepts("m", "metric, possible values " + Arrays.toString(Metric.values())).withRequiredArg().ofType(String.class).required();
+        final OptionSpec<String> metricOption = parser.acceptsAll(Arrays.asList("m", "metric"), "information loss metric, possible values " + Arrays.toString(Metric.values())).withRequiredArg().ofType(String.class).defaultsTo("ENTROPY");
 
-        // misc options
-        final OptionSpec<String> practical = parser.accepts("pm", "if present, practical monotonicity is assumed").withOptionalArg();
+        // suppression
+        final OptionSpec<Double> supressionOption = parser.acceptsAll(Arrays.asList("s", "suppression"), "amount of allowed outlier (supression) in percent/100. e.g. 0.5 means 50% outlier allowed").withRequiredArg().ofType(Double.class).defaultsTo(0.0d);
+
+        // database
+        final OptionSpec<String> databaseOption = parser.acceptsAll(Arrays.asList("db", "database"), "connection information for importing data from a database table. Syntax: [TYPE=[MYSQL|POSTGRESQL|SQLLITE],URL=value,PORT=value,USER=value,PASSWORD=value,DATABASE=value,TABLE=value] ").withRequiredArg().ofType(String.class);
+
+        // file
+        final OptionSpec<File> fileOption = parser.acceptsAll(Arrays.asList("f", "file"), "filename of the input data").withRequiredArg().ofType(File.class);
+
+        // output
+        final OptionSpec<File> outputOption = parser.acceptsAll(Arrays.asList("o", "output"), "filename of anonymized output").withRequiredArg().ofType(File.class);
+
+        // research subset
+        final OptionSpec<String> researchSubsetOption = parser.acceptsAll(Arrays.asList("r", "researchsubset"), "specification of a research subset, either by specifying a file or a query. Syntax: [FILE=filename|QUERY=querystring]").withRequiredArg().ofType(String.class);
+
+        // separator
+        final OptionSpec<String> separatorOption = parser.acceptsAll(Arrays.asList("sep", "separator"), "seperator used in the sepcified files; if omitted ';' is assumed. Syntax: [char|DETECT]").withRequiredArg().ofType(String.class).defaultsTo(";");
+
+        // practical monotonicity
+        final OptionSpec<Boolean> practicalOption = parser.acceptsAll(Arrays.asList("pm", "practicalmonotonicity"), "if present, practical monotonicity is assumed").withOptionalArg().ofType(Boolean.class).defaultsTo(false);
 
         try {
             final OptionSet options = parser.parse(args);
 
-            // data
-            // TODO: UGLY hack - how to get JOPT to accept Character as value type?
-            cli.separator = options.valueOf(seperator).charAt(0);
-            cli.data = Data.create(options.valueOf(input), cli.separator);
-            cli.output = options.valueOf(output);
+            final char separator = parseSeparator(options.valueOf(separatorOption));
+            final boolean practicalMonotonicity = options.valueOf(practicalOption);
+            final Map<String, Hierarchy> hierarchies = parseHierarchies(options.valueOf(hierarchyOption), separator);
 
-            // define attributes
-            List<String> attributeNames = options.valuesOf(attributeName);
+            final File input = options.valueOf(fileOption);
+            final String database = options.valueOf(databaseOption);
 
-            List<AttributeType> attributeTypes = new ArrayList<AttributeType>();
-            List<String> attributeTypeList = options.valuesOf(attributeType);
-            for (int i = 0; i < attributeTypeList.size(); i++) {
-                attributeTypes.add(AttributeType.valueOf(attributeTypeList.get(i).trim().toUpperCase()));
-            }
-            List<String> attributeHierarchies = options.valuesOf(attributeHierarchy);
+            final Data data = buildDataObject(input, database, separator);
 
-            if (attributeHierarchies.size() != attributeTypes.size() || attributeHierarchies.size() != attributeNames.size()) {
-                throw new IllegalArgumentException("each defined attribute has to have a defined type and hierarchy; in case of no hierarcy specifed define -aHierarhy NONE");
-            }
-            for (int i = 0; i < attributeNames.size(); i++) {
+            final DataSubset subset = parseSubset(options.valueOf(researchSubsetOption), separator, data);
+            final List<PrivacyCriterion> criteria = parseCriteria(options.valueOf(criteriaOption), hierarchies, subset);
 
-                switch (attributeTypes.get(i)) {
-                case ID:
-                    cli.data.getDefinition().setAttributeType(attributeNames.get(i), org.deidentifier.arx.AttributeType.IDENTIFYING_ATTRIBUTE);
-                    break;
-                case SA:
-                    cli.data.getDefinition().setAttributeType(attributeNames.get(i), org.deidentifier.arx.AttributeType.SENSITIVE_ATTRIBUTE);
-                    break;
-                case IS:
-                    cli.data.getDefinition().setAttributeType(attributeNames.get(i), org.deidentifier.arx.AttributeType.INSENSITIVE_ATTRIBUTE);
-                    break;
-                case QI:
-                    if (attributeHierarchies.get(i).equalsIgnoreCase("none")) {
-                        throw new IllegalArgumentException("quasi identifiers must have a hierarchy specified");
-                    }
-                    cli.data.getDefinition().setAttributeType(attributeNames.get(i), Hierarchy.create(attributeHierarchies.get(i), cli.separator));
-                    break;
+            final File output = options.valueOf(outputOption);
 
-                default:
-                    break;
-                }
-
-            }
-
-            // create config
-            cli.config = ARXConfiguration.create();
-            cli.config.setMaxOutliers(options.valueOf(s));
-
-            if (options.has(practical)) {
-                cli.config.setPracticalMonotonicity(true);
-            } else {
-                cli.config.setPracticalMonotonicity(false);
-            }
+            final double supression = options.valueOf(supressionOption);
 
             // set metric
-            Metric m = Metric.valueOf(options.valueOf(metric).trim().toUpperCase());
-            org.deidentifier.arx.metric.Metric<?> metricInstance = null;
-            switch (m) {
+            final Metric mValue = Metric.valueOf(options.valueOf(metricOption).trim().toUpperCase());
+            org.deidentifier.arx.metric.Metric<?> metric = null;
+            switch (mValue) {
             case PREC:
-                metricInstance = org.deidentifier.arx.metric.Metric.createPrecisionMetric();
+                metric = org.deidentifier.arx.metric.Metric.createPrecisionMetric();
                 break;
             case HEIGHT:
-                metricInstance = org.deidentifier.arx.metric.Metric.createHeightMetric();
+                metric = org.deidentifier.arx.metric.Metric.createHeightMetric();
                 break;
             case DMSTAR:
-                metricInstance = org.deidentifier.arx.metric.Metric.createDMStarMetric();
+                metric = org.deidentifier.arx.metric.Metric.createDMStarMetric();
                 break;
             case DM:
-                metricInstance = org.deidentifier.arx.metric.Metric.createDMMetric();
+                metric = org.deidentifier.arx.metric.Metric.createDMMetric();
                 break;
             case ENTROPY:
-                metricInstance = org.deidentifier.arx.metric.Metric.createEntropyMetric();
+                metric = org.deidentifier.arx.metric.Metric.createEntropyMetric();
                 break;
             case NMENTROPY:
-                metricInstance = org.deidentifier.arx.metric.Metric.createNMEntropyMetric();
+                metric = org.deidentifier.arx.metric.Metric.createNMEntropyMetric();
                 break;
             case AECS:
-                metricInstance = org.deidentifier.arx.metric.Metric.createAECSMetric();
+                metric = org.deidentifier.arx.metric.Metric.createAECSMetric();
                 break;
             default:
-                break;
-            }
-            cli.config.setMetric(metricInstance);
-
-            // criteria
-            // k-anonymity
-            if (options.has(k_anonymity)) {
-                cli.config.addCriterion(new KAnonymity(options.valueOf(kValue)));
+                throw new IllegalArgumentException("metric unknown: " + mValue);
             }
 
-            // d-presence
-            if (options.has(d_presence)) {
-                final DataSubset subsetInstance = DataSubset.create(cli.data, Data.create(options.valueOf(subset), cli.separator));
-                cli.config.addCriterion(new DPresence(options.valueOf(dMin), options.valueOf(dMax), subsetInstance));
-            }
+            final List<String> quasiIdentifier = options.valuesOf(qiOption);
+            final List<String> sensitiveAttributes = options.valuesOf(seOption);
+            final List<String> insensitiveAttributes = options.valuesOf(isOption);
+            final List<String> identifyingAttributes = options.valuesOf(idOption);
 
-            // l-diversity
-            if (options.has(l_diversity)) {
-                List<String> attributes = options.valuesOf(lAttribute);
-
-                switch (LDiversityVariant.valueOf(options.valueOf(lVariant).trim().toUpperCase())) {
-                case DISTINCT:
-                    for (String attribute : attributes) {
-                        cli.config.addCriterion(new DistinctLDiversity(attribute, options.valueOf(lValue).intValue()));
-                    }
-                    break;
-                case ENTROPY:
-                    for (String attribute : attributes) {
-                        cli.config.addCriterion(new EntropyLDiversity(attribute, options.valueOf(lValue)));
-                    }
-                    break;
-                case RECURSIVE:
-                    if (!options.has(cValue)) {
-                        throw new IllegalArgumentException("for recursive l-diversity a c value must be specified");
-                    }
-                    for (String attribute : attributes) {
-                        cli.config.addCriterion(new RecursiveCLDiversity(attribute, options.valueOf(cValue), options.valueOf(lValue).intValue()));
-                    }
-                    break;
-                default:
-                    break;
+            // define qis
+            for (final String attributName : quasiIdentifier) {
+                if (!hierarchies.containsKey(attributName)) {
+                    throw new IllegalArgumentException("quasi identifiers must have a hierarchy specified: " + attributName);
                 }
+                data.getDefinition().setAttributeType(attributName, hierarchies.get(attributName));
             }
 
-            // t-closeness
-            if (options.has(t_closeness)) {
-                List<String> attributes = options.valuesOf(tAttribute);
-                switch (TClosenessVariant.valueOf(options.valueOf(tVariant).trim().toUpperCase())) {
-                case EMD_EQUAL:
-                    for (String attribute : attributes) {
-                        cli.config.addCriterion(new EqualDistanceTCloseness(attribute, options.valueOf(tValue)));
-                    }
-                    break;
-                case EMD_HIERARCHICAL:
-                    Hierarchy h;
-                    for (String attribute : attributes) {
-                        // find corresponding hierarchy
-                        for (int i = 0; i < attributeNames.size(); i++) {
-                            if (attributeTypes.get(i).equals(attribute)) {
-                                if (attributeHierarchies.get(i).equalsIgnoreCase("none")) {
-                                    throw new IllegalArgumentException("for hierarchical t-closeness a hierarchy must be specified for attribute " + attribute);
-                                }
-                                h = Hierarchy.create(attributeHierarchies.get(i), cli.separator);
-                                cli.config.addCriterion(new HierarchicalDistanceTCloseness(attribute, options.valueOf(tValue), h));
-                                break;
-                            }
+            // define ses
+            for (final String attributName : sensitiveAttributes) {
+                data.getDefinition().setAttributeType(attributName, org.deidentifier.arx.AttributeType.SENSITIVE_ATTRIBUTE);
+            }
+
+            // define is
+            for (final String attributName : insensitiveAttributes) {
+                data.getDefinition().setAttributeType(attributName, org.deidentifier.arx.AttributeType.INSENSITIVE_ATTRIBUTE);
+            }
+
+            // define id
+            for (final String attributName : identifyingAttributes) {
+                data.getDefinition().setAttributeType(attributName, org.deidentifier.arx.AttributeType.IDENTIFYING_ATTRIBUTE);
+            }
+
+            // data types
+            final Map<String, DataType<?>> dataTypes = parseDataTypes(options.valuesOf(dataTypeOption));
+            for (final Entry<String, DataType<?>> entry : dataTypes.entrySet()) {
+                data.getDefinition().setDataType(entry.getKey(), entry.getValue());
+            }
+
+            // build config
+            final ARXConfiguration config = ARXConfiguration.create();
+            config.setMaxOutliers(supression);
+            config.setPracticalMonotonicity(practicalMonotonicity);
+            config.setMetric(metric);
+
+            // set criteria
+            for (final PrivacyCriterion criterion : criteria) {
+                config.addCriterion(criterion);
+            }
+
+            if (output != null) {
+                System.out.println("Using the following criteria for anonymization: " + criteria);
+            }
+
+            final ARXAnonymizer anonymizer = new ARXAnonymizer();
+            final ARXResult result = anonymizer.anonymize(data, config);
+
+            if (output != null) { // save to file
+                result.getOutput().save(output, separator);
+            } else { // output on console
+                final Iterator<String[]> transformed = result.getOutput().iterator();
+                while (transformed.hasNext()) {
+                    final String[] line = transformed.next();
+                    final StringBuilder outline = new StringBuilder();
+                    for (int i = 0; i < line.length; i++) {
+                        outline.append(line[i]);
+                        if (i < (line.length - 1)) {
+                            outline.append(separator);
                         }
                     }
-                    break;
-                default:
-                    break;
+                    // outline.append("\n");
+                    System.out.println(outline);
                 }
-
             }
-
-            // TODO: output config
-            // System.out.println(cli.config);
 
         } catch (final Exception e) {
             try {
                 System.err.println(e.getLocalizedMessage());
+                e.printStackTrace(); // TODO: for debugging only
                 parser.printHelpOn(System.out);
                 System.exit(1);
             } catch (final IOException e1) {
@@ -310,21 +521,5 @@ public class CommandLineInterface {
             }
         }
 
-        try {
-            // Create an instance of the anonymizer
-            final ARXAnonymizer anonymizer = new ARXAnonymizer();
-            final ARXResult result = anonymizer.anonymize(cli.data, cli.config);
-            result.getOutput().save(cli.output, cli.separator);
-        } catch (IOException e) {
-            e.printStackTrace();
-            try {
-                parser.printHelpOn(System.out);
-            } catch (IOException e1) {
-                e1.printStackTrace();
-                System.exit(1);
-            }
-        }
-        System.out.println("DONE");
     }
-
 }
