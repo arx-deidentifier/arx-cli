@@ -131,9 +131,19 @@ public class CommandLineInterface {
 
     private Data buildDataObject(final File input, final String database, final char separator) throws IOException {
         // build data object
-        // TODO: currently only file input supported... Implement JDBC and Sysin
+
         // TODO: for DataSource a addAllCoulumns could be introduced
-        final Data data = Data.create(input, separator);
+        Data data = null;
+
+        if (input != null) { // read from file
+            data = Data.create(input, separator);
+        } else if (database != null && database.length() > 0) { // read from db
+            // TODO: Implement JDBC datasource
+            throw new UnsupportedOperationException("import from database currently not supported");
+        } else { // read from console
+            // format as CSV!
+            data = Data.create(System.in, separator);
+        }
         return data;
     }
 
