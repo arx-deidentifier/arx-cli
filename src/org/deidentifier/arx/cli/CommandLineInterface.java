@@ -150,97 +150,99 @@ public class CommandLineInterface {
     private List<PrivacyCriterion> parseCriteria(final String criteriaOption, final Map<String, Hierarchy> hierarchies, final DataSubset subset) {
         final List<PrivacyCriterion> criteria = new ArrayList<PrivacyCriterion>();
 
-        final String k_anonymityRegEx = "(\\d)-ANONYMITY";
-        final String d_presenceRegEx = "[(](\\d+.?\\d*),(\\d+.?\\d*)[)]-PRESENCE";
-        final String attributeNameRegEx = "(\\w*)=";
-        final String l_diversityRegEx = "-[(](\\d.?\\d?)[)]-DIVERSITY";
-        final String l_diversityRegEx_Recursive = "-[(](\\d.?\\d?),(\\d.?\\d?)[)]-DIVERSITY";
-        final String t_closenessRegEx = "-[(](\\d.?\\d?)[)]-CLOSENESS";
+        if (criteriaOption != null && criteriaOption.length() > 0) {
 
-        Pattern pattern = null;
-        Matcher matcher = null;
+            final String k_anonymityRegEx = "(\\d)-ANONYMITY";
+            final String d_presenceRegEx = "[(](\\d+.?\\d*),(\\d+.?\\d*)[)]-PRESENCE";
+            final String attributeNameRegEx = "(\\w*)=";
+            final String l_diversityRegEx = "-[(](\\d.?\\d?)[)]-DIVERSITY";
+            final String l_diversityRegEx_Recursive = "-[(](\\d.?\\d?),(\\d.?\\d?)[)]-DIVERSITY";
+            final String t_closenessRegEx = "-[(](\\d.?\\d?)[)]-CLOSENESS";
 
-        // add all k-anonymity criteria
-        pattern = Pattern.compile(k_anonymityRegEx, Pattern.CASE_INSENSITIVE);
-        matcher = pattern.matcher(criteriaOption);
-        while (matcher.find()) {
-            final int k = Integer.parseInt(matcher.group(1));
-            final PrivacyCriterion criterion = new KAnonymity(k);
-            criteria.add(criterion);
-        }
+            Pattern pattern = null;
+            Matcher matcher = null;
 
-        // add all d-presence criteria
-        pattern = Pattern.compile(d_presenceRegEx, Pattern.CASE_INSENSITIVE);
-        matcher = pattern.matcher(criteriaOption);
-        while (matcher.find()) {
-            if (subset == null) {
-                throw new IllegalArgumentException("for d-presence a subset has to be defined");
+            // add all k-anonymity criteria
+            pattern = Pattern.compile(k_anonymityRegEx, Pattern.CASE_INSENSITIVE);
+            matcher = pattern.matcher(criteriaOption);
+            while (matcher.find()) {
+                final int k = Integer.parseInt(matcher.group(1));
+                final PrivacyCriterion criterion = new KAnonymity(k);
+                criteria.add(criterion);
             }
-            final double dmin = Double.parseDouble(matcher.group(1));
-            final double dmax = Double.parseDouble(matcher.group(2));
-            final PrivacyCriterion criterion = new DPresence(dmin, dmax, subset);
-            criteria.add(criterion);
-        }
 
-        // add all l-diversity criteria
-
-        // distinct
-        pattern = Pattern.compile(attributeNameRegEx + "DISTINCT" + l_diversityRegEx, Pattern.CASE_INSENSITIVE);
-        matcher = pattern.matcher(criteriaOption);
-        while (matcher.find()) {
-            final String attributeName = matcher.group(1);
-            final int l = Integer.parseInt(matcher.group(2));
-            final PrivacyCriterion criterion = new DistinctLDiversity(attributeName, l);
-            criteria.add(criterion);
-        }
-
-        // entropy
-        pattern = Pattern.compile(attributeNameRegEx + "ENTROPY" + l_diversityRegEx, Pattern.CASE_INSENSITIVE);
-        matcher = pattern.matcher(criteriaOption);
-        while (matcher.find()) {
-            final String attributeName = matcher.group(1);
-            final double l = Double.parseDouble(matcher.group(2));
-            final PrivacyCriterion criterion = new EntropyLDiversity(attributeName, l);
-            criteria.add(criterion);
-        }
-
-        // recursive
-        pattern = Pattern.compile(attributeNameRegEx + "RECURSIVE" + l_diversityRegEx_Recursive, Pattern.CASE_INSENSITIVE);
-        matcher = pattern.matcher(criteriaOption);
-        while (matcher.find()) {
-            final String attributeName = matcher.group(1);
-            final double c = Double.parseDouble(matcher.group(2));
-            final int l = Integer.parseInt(matcher.group(3));
-            final PrivacyCriterion criterion = new RecursiveCLDiversity(attributeName, c, l);
-            criteria.add(criterion);
-        }
-
-        // add all t-closeness criteria
-
-        // hierarchical
-        pattern = Pattern.compile(attributeNameRegEx + "HIERARCHICAL" + t_closenessRegEx, Pattern.CASE_INSENSITIVE);
-        matcher = pattern.matcher(criteriaOption);
-        while (matcher.find()) {
-            final String attributeName = matcher.group(1);
-            final Hierarchy h = hierarchies.get(attributeName);
-            if (h == null) {
-                throw new IllegalArgumentException("for hierarchical t-closeness a hierarchy has to be defined: " + attributeName);
+            // add all d-presence criteria
+            pattern = Pattern.compile(d_presenceRegEx, Pattern.CASE_INSENSITIVE);
+            matcher = pattern.matcher(criteriaOption);
+            while (matcher.find()) {
+                if (subset == null) {
+                    throw new IllegalArgumentException("for d-presence a subset has to be defined");
+                }
+                final double dmin = Double.parseDouble(matcher.group(1));
+                final double dmax = Double.parseDouble(matcher.group(2));
+                final PrivacyCriterion criterion = new DPresence(dmin, dmax, subset);
+                criteria.add(criterion);
             }
-            final double t = Double.parseDouble(matcher.group(2));
-            final PrivacyCriterion criterion = new HierarchicalDistanceTCloseness(attributeName, t, h);
-            criteria.add(criterion);
-        }
 
-        // equal
-        pattern = Pattern.compile(attributeNameRegEx + "EQUALDISTANCE" + t_closenessRegEx, Pattern.CASE_INSENSITIVE);
-        matcher = pattern.matcher(criteriaOption);
-        while (matcher.find()) {
-            final String attributeName = matcher.group(1);
-            final double t = Double.parseDouble(matcher.group(2));
-            final PrivacyCriterion criterion = new EqualDistanceTCloseness(attributeName, t);
-            criteria.add(criterion);
-        }
+            // add all l-diversity criteria
 
+            // distinct
+            pattern = Pattern.compile(attributeNameRegEx + "DISTINCT" + l_diversityRegEx, Pattern.CASE_INSENSITIVE);
+            matcher = pattern.matcher(criteriaOption);
+            while (matcher.find()) {
+                final String attributeName = matcher.group(1);
+                final int l = Integer.parseInt(matcher.group(2));
+                final PrivacyCriterion criterion = new DistinctLDiversity(attributeName, l);
+                criteria.add(criterion);
+            }
+
+            // entropy
+            pattern = Pattern.compile(attributeNameRegEx + "ENTROPY" + l_diversityRegEx, Pattern.CASE_INSENSITIVE);
+            matcher = pattern.matcher(criteriaOption);
+            while (matcher.find()) {
+                final String attributeName = matcher.group(1);
+                final double l = Double.parseDouble(matcher.group(2));
+                final PrivacyCriterion criterion = new EntropyLDiversity(attributeName, l);
+                criteria.add(criterion);
+            }
+
+            // recursive
+            pattern = Pattern.compile(attributeNameRegEx + "RECURSIVE" + l_diversityRegEx_Recursive, Pattern.CASE_INSENSITIVE);
+            matcher = pattern.matcher(criteriaOption);
+            while (matcher.find()) {
+                final String attributeName = matcher.group(1);
+                final double c = Double.parseDouble(matcher.group(2));
+                final int l = Integer.parseInt(matcher.group(3));
+                final PrivacyCriterion criterion = new RecursiveCLDiversity(attributeName, c, l);
+                criteria.add(criterion);
+            }
+
+            // add all t-closeness criteria
+
+            // hierarchical
+            pattern = Pattern.compile(attributeNameRegEx + "HIERARCHICAL" + t_closenessRegEx, Pattern.CASE_INSENSITIVE);
+            matcher = pattern.matcher(criteriaOption);
+            while (matcher.find()) {
+                final String attributeName = matcher.group(1);
+                final Hierarchy h = hierarchies.get(attributeName);
+                if (h == null) {
+                    throw new IllegalArgumentException("for hierarchical t-closeness a hierarchy has to be defined: " + attributeName);
+                }
+                final double t = Double.parseDouble(matcher.group(2));
+                final PrivacyCriterion criterion = new HierarchicalDistanceTCloseness(attributeName, t, h);
+                criteria.add(criterion);
+            }
+
+            // equal
+            pattern = Pattern.compile(attributeNameRegEx + "EQUALDISTANCE" + t_closenessRegEx, Pattern.CASE_INSENSITIVE);
+            matcher = pattern.matcher(criteriaOption);
+            while (matcher.find()) {
+                final String attributeName = matcher.group(1);
+                final double t = Double.parseDouble(matcher.group(2));
+                final PrivacyCriterion criterion = new EqualDistanceTCloseness(attributeName, t);
+                criteria.add(criterion);
+            }
+        }
         return criteria;
     }
 
@@ -289,29 +291,32 @@ public class CommandLineInterface {
         // < > ? " : | \ / *
         // String hiers2 = "attributname1=filename1/fed=te.csv:attributname2=filename2";
 
-        StringBuilder attributeName = new StringBuilder();
-        StringBuilder fileName = new StringBuilder();
-        boolean matchingAttributeName = true;
-        for (int i = 0; i < hierarchyOption.length(); i++) {
-            final char c = hierarchyOption.charAt(i);
-            if ((c == '=') && matchingAttributeName) {
-                matchingAttributeName = false;
-            } else if ((c == ',') && !matchingAttributeName) {
+        if (hierarchyOption != null && hierarchyOption.length() > 0) {
+
+            StringBuilder attributeName = new StringBuilder();
+            StringBuilder fileName = new StringBuilder();
+            boolean matchingAttributeName = true;
+            for (int i = 0; i < hierarchyOption.length(); i++) {
+                final char c = hierarchyOption.charAt(i);
+                if ((c == '=') && matchingAttributeName) {
+                    matchingAttributeName = false;
+                } else if ((c == ',') && !matchingAttributeName) {
+                    final Hierarchy h = Hierarchy.create(fileName.toString(), seperator);
+                    hierarchies.put(attributeName.toString(), h);
+                    matchingAttributeName = true;
+                    attributeName = new StringBuilder();
+                    fileName = new StringBuilder();
+                } else if (matchingAttributeName) {
+                    attributeName.append(c);
+                } else if (!matchingAttributeName) {
+                    fileName.append(c);
+                }
+            }
+            // put last found pair in map
+            if (attributeName.length() > 0) {
                 final Hierarchy h = Hierarchy.create(fileName.toString(), seperator);
                 hierarchies.put(attributeName.toString(), h);
-                matchingAttributeName = true;
-                attributeName = new StringBuilder();
-                fileName = new StringBuilder();
-            } else if (matchingAttributeName) {
-                attributeName.append(c);
-            } else if (!matchingAttributeName) {
-                fileName.append(c);
             }
-        }
-        // put last found pair in map
-        if (attributeName.length() > 0) {
-            final Hierarchy h = Hierarchy.create(fileName.toString(), seperator);
-            hierarchies.put(attributeName.toString(), h);
         }
 
         return hierarchies;
