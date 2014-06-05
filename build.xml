@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project default="create_run_jar" name="Create Runnable Jar for Project arx-cli">
+
+    <property name="arx.workspace" value="C:/workspace/arx/" />
+
+    <!-- defines the to be included libraries -->
+    <fileset id="lib.jars" dir="${arx.workspace}/lib">
+        <or>
+            <filename name="**/colt-1.2.0.jar" />
+            <filename name="**/commons-math3-3.1.1.jar" />
+            <filename name="**/Jama-1.0.2.jar" />
+            <filename name="**/objectselector-0.1-lib.jar" />
+            <filename name="**/commons-io-2.4.jar" />
+            <filename name="**/mysql-connector-java-5.1.27-bin.jar" />
+            <filename name="**/commons-codec-1.5.jar" />
+            <filename name="**/commons-logging-1.1.jar" />
+            <filename name="**/dom4j-1.6.1.jar" />
+            <filename name="**/stax-api-1.0.1.jar" />
+            <filename name="**/xmlbeans-2.3.0.jar" />
+            <filename name="**/poi-3.10-FINAL-20140208.jar" />
+            <filename name="**/poi-ooxml-3.10-FINAL-20140208.jar" />
+            <filename name="**/poi-ooxml-schemas-3.10-FINAL-20140208.jar" />
+            <filename name="**/postgresql-9.3-1101.jdbc41.jar" />
+            <filename name="**/sqlite-jdbc-3.7.2.jar" />
+        </or>
+    </fileset>
+
+    <target name="buildExternalLibs">
+        <jar jarfile="build/extLibs/lib.jar">
+            <zipgroupfileset refid="lib.jars" />
+        </jar>
+    </target>
+
+    <target name="create_run_jar" depends="buildExternalLibs">
+        <jar destfile="arx-cli.jar" filesetmanifest="mergewithoutmain">
+            <manifest>
+                <attribute name="Main-Class" value="org.deidentifier.arx.cli.CommandLineInterface" />
+                <attribute name="Class-Path" value="." />
+            </manifest>
+            <fileset dir="bin" />
+            <fileset dir="${arx.workspace}/bin" />
+            <zipfileset src="build/extLibs/lib.jar" excludes="META-INF/*.RSA,META-INF/*.SF,META-INF/*.DSA" />
+            <zipfileset excludes="META-INF/*.SF" src="lib/JOptSimple/jopt-simple-4.6.jar" />
+        </jar>
+    </target>
+</project>
