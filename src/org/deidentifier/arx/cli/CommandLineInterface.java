@@ -152,12 +152,14 @@ public class CommandLineInterface {
 
         if (criteriaOption != null && criteriaOption.length() > 0) {
 
+            final String matchContentInParenthesis = "\\((.*?)\\)";
+            final String matchContentInParenthesisCommaSepareted = "\\((.*?),(.*?)\\)";
             final String k_anonymityRegEx = "(\\d)-ANONYMITY";
-            final String d_presenceRegEx = "[(](\\d+.?\\d*),(\\d+.?\\d*)[)]-PRESENCE";
+            final String d_presenceRegEx = matchContentInParenthesisCommaSepareted + "-PRESENCE";
             final String attributeNameRegEx = "(\\w*)=";
-            final String l_diversityRegEx = "-[(](\\d.?\\d?)[)]-DIVERSITY";
-            final String l_diversityRegEx_Recursive = "-[(](\\d.?\\d?),(\\d.?\\d?)[)]-DIVERSITY";
-            final String t_closenessRegEx = "-[(](\\d.?\\d?)[)]-CLOSENESS";
+            final String l_diversityRegEx = "-" + matchContentInParenthesis + "-DIVERSITY";
+            final String l_diversityRegEx_Recursive = "-" + matchContentInParenthesisCommaSepareted + "-DIVERSITY";
+            final String t_closenessRegEx = "-" + matchContentInParenthesis + "-CLOSENESS";
 
             Pattern pattern = null;
             Matcher matcher = null;
