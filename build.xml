@@ -32,7 +32,7 @@
     </target>
 
     <target name="create_run_jar" depends="buildExternalLibs">
-        <jar destfile="arx-cli.jar" filesetmanifest="mergewithoutmain">
+        <jar destfile="build/arx-cli.jar" filesetmanifest="mergewithoutmain">
             <manifest>
                 <attribute name="Main-Class" value="org.deidentifier.arx.cli.CommandLineInterface" />
                 <attribute name="Class-Path" value="." />
@@ -42,5 +42,9 @@
             <zipfileset src="build/extLibs/lib.jar" excludes="META-INF/*.RSA,META-INF/*.SF,META-INF/*.DSA" />
             <zipfileset excludes="META-INF/*.SF" src="lib/JOptSimple/jopt-simple-4.6.jar" />
         </jar>
+        <copy todir="build">
+            <fileset dir="scripts" />
+        </copy>
+        <delete dir="build/extLibs" />
     </target>
 </project>
