@@ -109,6 +109,10 @@ public class CommandLineInterface {
      * 
      */
 
+    public static final char SEPARATOR_OPTION    = ',';
+    public static final char SEPARATOR_KEY_VALUE = '=';
+    public static final char SEPARATOR_CRITERIA  = ';';
+
     public static enum Metric {
         AECS,
         DM,
@@ -129,6 +133,39 @@ public class CommandLineInterface {
         cli.run(args);
     }
 
+    /**
+     * Splits the splitString by means of the separator. Escaping via backslash allowed, the escape character will be removed.
+     * 
+     * @param splitString
+     * @param separator
+     * @return
+     */
+    private String[] splitBySeparator(final String splitString, final char separator) {
+        if (splitString != null && splitString.length() > 0) {
+            char escape = '\\';
+            String regex = "(?<!" + Pattern.quote(String.valueOf(escape)) + ")" + Pattern.quote(String.valueOf(separator));
+            String[] splittedString = splitString.split(regex);
+            for (int i = 0; i < splittedString.length; i++) {
+                splittedString[i] = splittedString[i].replaceAll(Pattern.quote(String.valueOf(escape)) + Pattern.quote(String.valueOf(separator)), String.valueOf(separator));
+            }
+            return splittedString;
+        } else {
+            return new String[0];
+        }
+    }
+
+    /**
+     * Build the data object needed for the ARXAnonymizer. Takes a file and a database string as input.
+     * If the file is not null, the data object will be created from the given file, using the given separator as separator.
+     * If the file is null and the database string is not null, the data object will be created from the given database.
+     * If both, file and database string are null, STDIN will be used for creating the data object.
+     * 
+     * @param input
+     * @param database
+     * @param separator
+     * @return
+     * @throws IOException
+     */
     private Data buildDataObject(final File input, final String database, final char separator) throws IOException {
         // build data object
 
@@ -147,26 +184,46 @@ public class CommandLineInterface {
         return data;
     }
 
-    private List<PrivacyCriterion> parseCriteria(final String criteriaOption, final Map<String, Hierarchy> hierarchies, final DataSubset subset) {
+    /**
+     * Creates the list of privacy criteria from the given option string.
+     * 
+     * @param criteriaOption
+     * @param hierarchies
+     * @param subset
+     * @return
+     */
+    private List<PrivacyCriterion> parseCriteria(final List<String> criteriaOption, final Map<String, Hierarchy> hierarchies, final DataSubset subset) {
         final List<PrivacyCriterion> criteria = new ArrayList<PrivacyCriterion>();
 
-        if (criteriaOption != null && criteriaOption.length() > 0) {
+        final String matchContentInParenthesis = "\\((.*?)\\)";
+        final String matchContentInParenthesisCommaSepareted = "\\((.*?)" + SEPARATOR_CRITERIA + "(.*?)\\)";
+        final String k_anonymityRegEx = "(\\d)-ANONYMITY";
+        final String d_presenceRegEx = matchContentInParenthesisCommaSepareted + "-PRESENCE";
+        final String l_diversityRegEx = "-" + matchContentInParenthesis + "-DIVERSITY";
+        final String l_diversityRegEx_Recursive = "-" + matchContentInParenthesisCommaSepareted + "-DIVERSITY";
+        final String t_closenessRegEx = "-" + matchContentInParenthesis + "-CLOSENESS";
 
-            final String matchContentInParenthesis = "\\((.*?)\\)";
-            final String matchContentInParenthesisCommaSepareted = "\\((.*?),(.*?)\\)";
-            final String k_anonymityRegEx = "(\\d)-ANONYMITY";
-            final String d_presenceRegEx = matchContentInParenthesisCommaSepareted + "-PRESENCE";
-            final String attributeNameRegEx = "(\\w*)=";
-            final String l_diversityRegEx = "-" + matchContentInParenthesis + "-DIVERSITY";
-            final String l_diversityRegEx_Recursive = "-" + matchContentInParenthesisCommaSepareted + "-DIVERSITY";
-            final String t_closenessRegEx = "-" + matchContentInParenthesis + "-CLOSENESS";
+        for (String criterionString : criteriaOption) {
+
+            String key = null;
+            String value = null;
+
+            String[] split = splitBySeparator(criterionString, SEPARATOR_KEY_VALUE);
+            if (split.length == 1) {
+                value = split[0];
+            } else if (split.length == 2) {
+                key = split[0];
+                value = split[1];
+            } else {
+                throw new IllegalArgumentException("criteria string is malformed.");
+            }
 
             Pattern pattern = null;
             Matcher matcher = null;
 
             // add all k-anonymity criteria
             pattern = Pattern.compile(k_anonymityRegEx, Pattern.CASE_INSENSITIVE);
-            matcher = pattern.matcher(criteriaOption);
+            matcher = pattern.matcher(value);
             while (matcher.find()) {
                 final int k = Integer.parseInt(matcher.group(1));
                 final PrivacyCriterion criterion = new KAnonymity(k);
@@ -175,7 +232,7 @@ public class CommandLineInterface {
 
             // add all d-presence criteria
             pattern = Pattern.compile(d_presenceRegEx, Pattern.CASE_INSENSITIVE);
-            matcher = pattern.matcher(criteriaOption);
+            matcher = pattern.matcher(value);
             while (matcher.find()) {
                 if (subset == null) {
                     throw new IllegalArgumentException("for d-presence a subset has to be defined");
@@ -189,69 +246,74 @@ public class CommandLineInterface {
             // add all l-diversity criteria
 
             // distinct
-            pattern = Pattern.compile(attributeNameRegEx + "DISTINCT" + l_diversityRegEx, Pattern.CASE_INSENSITIVE);
-            matcher = pattern.matcher(criteriaOption);
+            pattern = Pattern.compile("DISTINCT" + l_diversityRegEx, Pattern.CASE_INSENSITIVE);
+            matcher = pattern.matcher(value);
             while (matcher.find()) {
-                final String attributeName = matcher.group(1);
-                final int l = Integer.parseInt(matcher.group(2));
-                final PrivacyCriterion criterion = new DistinctLDiversity(attributeName, l);
+                final int l = Integer.parseInt(matcher.group(1));
+                final PrivacyCriterion criterion = new DistinctLDiversity(key, l);
                 criteria.add(criterion);
             }
 
             // entropy
-            pattern = Pattern.compile(attributeNameRegEx + "ENTROPY" + l_diversityRegEx, Pattern.CASE_INSENSITIVE);
-            matcher = pattern.matcher(criteriaOption);
+            pattern = Pattern.compile("ENTROPY" + l_diversityRegEx, Pattern.CASE_INSENSITIVE);
+            matcher = pattern.matcher(value);
             while (matcher.find()) {
-                final String attributeName = matcher.group(1);
-                final double l = Double.parseDouble(matcher.group(2));
-                final PrivacyCriterion criterion = new EntropyLDiversity(attributeName, l);
+                final double l = Double.parseDouble(matcher.group(1));
+                final PrivacyCriterion criterion = new EntropyLDiversity(key, l);
                 criteria.add(criterion);
             }
 
             // recursive
-            pattern = Pattern.compile(attributeNameRegEx + "RECURSIVE" + l_diversityRegEx_Recursive, Pattern.CASE_INSENSITIVE);
-            matcher = pattern.matcher(criteriaOption);
+            pattern = Pattern.compile("RECURSIVE" + l_diversityRegEx_Recursive, Pattern.CASE_INSENSITIVE);
+            matcher = pattern.matcher(value);
             while (matcher.find()) {
-                final String attributeName = matcher.group(1);
-                final double c = Double.parseDouble(matcher.group(2));
-                final int l = Integer.parseInt(matcher.group(3));
-                final PrivacyCriterion criterion = new RecursiveCLDiversity(attributeName, c, l);
+                final double c = Double.parseDouble(matcher.group(1));
+                final int l = Integer.parseInt(matcher.group(2));
+                final PrivacyCriterion criterion = new RecursiveCLDiversity(key, c, l);
                 criteria.add(criterion);
             }
 
             // add all t-closeness criteria
 
             // hierarchical
-            pattern = Pattern.compile(attributeNameRegEx + "HIERARCHICAL" + t_closenessRegEx, Pattern.CASE_INSENSITIVE);
-            matcher = pattern.matcher(criteriaOption);
+            pattern = Pattern.compile("HIERARCHICAL" + t_closenessRegEx, Pattern.CASE_INSENSITIVE);
+            matcher = pattern.matcher(value);
             while (matcher.find()) {
-                final String attributeName = matcher.group(1);
-                final Hierarchy h = hierarchies.get(attributeName);
+                final Hierarchy h = hierarchies.get(key);
                 if (h == null) {
-                    throw new IllegalArgumentException("for hierarchical t-closeness a hierarchy has to be defined: " + attributeName);
+                    throw new IllegalArgumentException("for hierarchical t-closeness a hierarchy has to be defined: " + key);
                 }
-                final double t = Double.parseDouble(matcher.group(2));
-                final PrivacyCriterion criterion = new HierarchicalDistanceTCloseness(attributeName, t, h);
+                final double t = Double.parseDouble(matcher.group(1));
+                final PrivacyCriterion criterion = new HierarchicalDistanceTCloseness(key, t, h);
                 criteria.add(criterion);
             }
 
             // equal
-            pattern = Pattern.compile(attributeNameRegEx + "EQUALDISTANCE" + t_closenessRegEx, Pattern.CASE_INSENSITIVE);
-            matcher = pattern.matcher(criteriaOption);
+            pattern = Pattern.compile("EQUALDISTANCE" + t_closenessRegEx, Pattern.CASE_INSENSITIVE);
+            matcher = pattern.matcher(value);
             while (matcher.find()) {
-                final String attributeName = matcher.group(1);
-                final double t = Double.parseDouble(matcher.group(2));
-                final PrivacyCriterion criterion = new EqualDistanceTCloseness(attributeName, t);
+                final double t = Double.parseDouble(matcher.group(1));
+                final PrivacyCriterion criterion = new EqualDistanceTCloseness(key, t);
                 criteria.add(criterion);
             }
         }
+
         return criteria;
     }
 
+    /**
+     * Creates a map from the option string containing the attribute names as keys and the corresponding data types as values.
+     * 
+     * @param datatypeOption
+     * @return
+     */
     private Map<String, DataType<?>> parseDataTypes(final List<String> datatypeOption) {
         final Map<String, DataType<?>> datatypes = new HashMap<String, DataType<?>>();
         for (final String type : datatypeOption) {
-            final String[] split = type.split("=");
+            final String[] split = splitBySeparator(type, SEPARATOR_KEY_VALUE);
+            if (split.length != 2) {
+                throw new IllegalArgumentException("datatype string is malformed.");
+            }
 
             final Pattern pattern = Pattern.compile("(\\w+)[(]?(.*)", Pattern.CASE_INSENSITIVE);
             final Matcher matcher = pattern.matcher(split[1]);
@@ -283,47 +345,36 @@ public class CommandLineInterface {
         return datatypes;
     }
 
-    private Map<String, Hierarchy> parseHierarchies(final String hierarchyOption, final char seperator) throws IOException {
+    /**
+     * Creates a map from the option string containing the attribute names as keys and the corresponding hierarchies as values.
+     * 
+     * @param hierarchyOption
+     * @param seperator
+     * @return
+     * @throws IOException
+     */
+    private Map<String, Hierarchy> parseHierarchies(final List<String> hierarchyOption, final char seperator) throws IOException {
         final Map<String, Hierarchy> hierarchies = new HashMap<String, Hierarchy>();
 
-        // TODO: with the current implementation a filename is not allowed to contain ','
-
-        // different naming scheme?
-        // in windows the following charcters are not allowed in filenames:
-        // < > ? " : | \ / *
-        // String hiers2 = "attributname1=filename1/fed=te.csv:attributname2=filename2";
-
-        if (hierarchyOption != null && hierarchyOption.length() > 0) {
-
-            StringBuilder attributeName = new StringBuilder();
-            StringBuilder fileName = new StringBuilder();
-            boolean matchingAttributeName = true;
-            for (int i = 0; i < hierarchyOption.length(); i++) {
-                final char c = hierarchyOption.charAt(i);
-                if ((c == '=') && matchingAttributeName) {
-                    matchingAttributeName = false;
-                } else if ((c == ',') && !matchingAttributeName) {
-                    final Hierarchy h = Hierarchy.create(fileName.toString(), seperator);
-                    hierarchies.put(attributeName.toString(), h);
-                    matchingAttributeName = true;
-                    attributeName = new StringBuilder();
-                    fileName = new StringBuilder();
-                } else if (matchingAttributeName) {
-                    attributeName.append(c);
-                } else if (!matchingAttributeName) {
-                    fileName.append(c);
+        if (hierarchyOption != null && hierarchyOption.size() > 0) {
+            for (String string : hierarchyOption) {
+                String[] split = splitBySeparator(string, SEPARATOR_KEY_VALUE);
+                if (split.length != 2) {
+                    throw new IllegalArgumentException("hierarchy string is malformed.");
                 }
-            }
-            // put last found pair in map
-            if (attributeName.length() > 0) {
-                final Hierarchy h = Hierarchy.create(fileName.toString(), seperator);
-                hierarchies.put(attributeName.toString(), h);
+                final Hierarchy h = Hierarchy.create(split[1], seperator);
+                hierarchies.put(split[0], h);
             }
         }
-
         return hierarchies;
     }
 
+    /**
+     * Parses the separator option and returns the seperator char.
+     * 
+     * @param separatorOption
+     * @return
+     */
     private char parseSeparator(final String separatorOption) {
         if (separatorOption.length() == 1) {
             return separatorOption.charAt(0);
@@ -335,6 +386,17 @@ public class CommandLineInterface {
         }
     }
 
+    /**
+     * Parses the subset option and creates the corresponding subset.
+     * 
+     * 
+     * @param subsetOption
+     * @param separator
+     * @param data
+     * @return
+     * @throws ParseException
+     * @throws IOException
+     */
     private DataSubset parseSubset(final String subsetOption, final char separator, final Data data) throws ParseException, IOException {
 
         DataSubset subset = null;
@@ -364,22 +426,27 @@ public class CommandLineInterface {
         return subset;
     }
 
+    /**
+     * Parse the command line and anonymize.
+     * 
+     * @param args
+     */
     private void run(final String[] args) {
         final OptionParser parser = new OptionParser();
 
         // define options
 
         // attributes
-        final OptionSpec<String> qiOption = parser.acceptsAll(Arrays.asList("qi", "quasiidentifying"), "names of the quasi identifying attributes, delimited by ','").withRequiredArg().ofType(String.class).withValuesSeparatedBy(',');
-        final OptionSpec<String> seOption = parser.acceptsAll(Arrays.asList("se", "sensitive"), "names of the sensitive attributes, delimited by ','").withRequiredArg().ofType(String.class).withValuesSeparatedBy(',');
-        final OptionSpec<String> isOption = parser.acceptsAll(Arrays.asList("is", "insensitive"), "names of the insensitive attributes, delimited by ','").withRequiredArg().ofType(String.class).withValuesSeparatedBy(',');
-        final OptionSpec<String> idOption = parser.acceptsAll(Arrays.asList("id", "identifying"), "names of the identifying attributes, delimited by ','").withRequiredArg().ofType(String.class).withValuesSeparatedBy(',');
+        final OptionSpec<String> qiOption = parser.acceptsAll(Arrays.asList("qi", "quasiidentifying"), "names of the quasi identifying attributes, delimited by ','").withRequiredArg().ofType(String.class);
+        final OptionSpec<String> seOption = parser.acceptsAll(Arrays.asList("se", "sensitive"), "names of the sensitive attributes, delimited by ','").withRequiredArg().ofType(String.class);
+        final OptionSpec<String> isOption = parser.acceptsAll(Arrays.asList("is", "insensitive"), "names of the insensitive attributes, delimited by ','").withRequiredArg().ofType(String.class);
+        final OptionSpec<String> idOption = parser.acceptsAll(Arrays.asList("id", "identifying"), "names of the identifying attributes, delimited by ','").withRequiredArg().ofType(String.class);
 
         // hierarchies
         final OptionSpec<String> hierarchyOption = parser.acceptsAll(Arrays.asList("h", "hierarchies"), "hierarchies for the attributes, delimited by ','. Syntax: [attributname1=filename1,attributname2=filename2]").withRequiredArg().ofType(String.class);
 
         // datatypes
-        final OptionSpec<String> dataTypeOption = parser.acceptsAll(Arrays.asList("d", "datatype"), "datatypes of the attributes, delimited by ','. Syntax: [attributname1=STRING|DECIMAL(format)|INTEGER|DATE(format)]").withRequiredArg().ofType(String.class).withValuesSeparatedBy(',');
+        final OptionSpec<String> dataTypeOption = parser.acceptsAll(Arrays.asList("d", "datatype"), "datatypes of the attributes, delimited by ','. Syntax: [attributname1=STRING|DECIMAL(format)|INTEGER|DATE(format)]").withRequiredArg().ofType(String.class);
 
         // criteria
         final OptionSpec<String> criteriaOption = parser.acceptsAll(Arrays.asList("c", "criteria"), "anonymization criteria, delimited by ','. Syntax: [x-ANONYMITY,(x,y)-PRESENCE,attributname1=DISTINCT|ENTROPY|RECURSIVE-(x|x,y)-DIVERSITY,attributname2=HIERARCHICAL|EQUALDISTANCE-(x)-CLOSENESS]").withRequiredArg().ofType(String.class);
@@ -413,7 +480,7 @@ public class CommandLineInterface {
 
             final char separator = parseSeparator(options.valueOf(separatorOption));
             final boolean practicalMonotonicity = options.valueOf(practicalOption);
-            final Map<String, Hierarchy> hierarchies = parseHierarchies(options.valueOf(hierarchyOption), separator);
+            final Map<String, Hierarchy> hierarchies = parseHierarchies(Arrays.asList(splitBySeparator(options.valueOf(hierarchyOption), SEPARATOR_OPTION)), separator);
 
             final File input = options.valueOf(fileOption);
             final String database = options.valueOf(databaseOption);
@@ -421,7 +488,7 @@ public class CommandLineInterface {
             final Data data = buildDataObject(input, database, separator);
 
             final DataSubset subset = parseSubset(options.valueOf(researchSubsetOption), separator, data);
-            final List<PrivacyCriterion> criteria = parseCriteria(options.valueOf(criteriaOption), hierarchies, subset);
+            final List<PrivacyCriterion> criteria = parseCriteria(Arrays.asList(splitBySeparator(options.valueOf(criteriaOption), SEPARATOR_OPTION)), hierarchies, subset);
 
             final File output = options.valueOf(outputOption);
 
@@ -456,10 +523,10 @@ public class CommandLineInterface {
                 throw new IllegalArgumentException("metric unknown: " + mValue);
             }
 
-            final List<String> quasiIdentifier = options.valuesOf(qiOption);
-            final List<String> sensitiveAttributes = options.valuesOf(seOption);
-            final List<String> insensitiveAttributes = options.valuesOf(isOption);
-            final List<String> identifyingAttributes = options.valuesOf(idOption);
+            final List<String> quasiIdentifier = Arrays.asList(splitBySeparator(options.valueOf(qiOption), SEPARATOR_OPTION));
+            final List<String> sensitiveAttributes = Arrays.asList(splitBySeparator(options.valueOf(seOption), SEPARATOR_OPTION));
+            final List<String> insensitiveAttributes = Arrays.asList(splitBySeparator(options.valueOf(isOption), SEPARATOR_OPTION));
+            final List<String> identifyingAttributes = Arrays.asList(splitBySeparator(options.valueOf(idOption), SEPARATOR_OPTION));
 
             // define qis
             for (final String attributName : quasiIdentifier) {
@@ -485,7 +552,7 @@ public class CommandLineInterface {
             }
 
             // data types
-            final Map<String, DataType<?>> dataTypes = parseDataTypes(options.valuesOf(dataTypeOption));
+            final Map<String, DataType<?>> dataTypes = parseDataTypes(Arrays.asList(splitBySeparator(options.valueOf(dataTypeOption), SEPARATOR_OPTION)));
             for (final Entry<String, DataType<?>> entry : dataTypes.entrySet()) {
                 data.getDefinition().setDataType(entry.getKey(), entry.getValue());
             }
