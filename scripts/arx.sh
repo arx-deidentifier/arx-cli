@@ -1,2 +1,2 @@
 #!/bin/sh
-java -jar arx-cli.jar $*
+exec java -jar arx-cli.jar $*
