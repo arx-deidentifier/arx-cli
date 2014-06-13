@@ -436,6 +436,8 @@ public class CommandLineInterface {
 
         // define options
 
+        final OptionSpec<String> help = parser.acceptsAll(Arrays.asList("?", "help"), "prints the help").withOptionalArg().ofType(String.class);
+
         // attributes
         final OptionSpec<String> qiOption = parser.acceptsAll(Arrays.asList("qi", "quasiidentifying"), "names of the quasi identifying attributes, delimited by ','").withRequiredArg().ofType(String.class);
         final OptionSpec<String> seOption = parser.acceptsAll(Arrays.asList("se", "sensitive"), "names of the sensitive attributes, delimited by ','").withRequiredArg().ofType(String.class);
@@ -477,6 +479,11 @@ public class CommandLineInterface {
 
         try {
             final OptionSet options = parser.parse(args);
+
+            if (options.has(help)) {
+                parser.printHelpOn(System.out);
+                System.exit(0);
+            }
 
             final char separator = parseSeparator(options.valueOf(separatorOption));
             final boolean practicalMonotonicity = options.valueOf(practicalOption);
