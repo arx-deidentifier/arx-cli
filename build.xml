@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <project default="create_run_jar" name="Create Runnable Jar for Project arx-cli">
 
+    <!-- defines the version number -->
+    <property name="arx.version" value="2.1.1" />
+
     <property name="arx.workspace" value="C:/workspace/arx/" />
 
     <!-- defines the to be included libraries -->
@@ -31,8 +34,12 @@
         </jar>
     </target>
 
-    <target name="create_run_jar" depends="buildExternalLibs">
-        <jar destfile="build/arx-cli.jar" filesetmanifest="mergewithoutmain">
+    <target name="clean">
+        <delete dir="build" />
+    </target>
+
+    <target name="create_run_jar" depends="clean,buildExternalLibs">
+        <jar destfile="build/arx-${arx.version}-cli.jar" filesetmanifest="mergewithoutmain">
             <manifest>
                 <attribute name="Main-Class" value="org.deidentifier.arx.cli.CommandLineInterface" />
                 <attribute name="Class-Path" value="." />
