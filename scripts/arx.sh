@@ -1,2 +1,2 @@
 #!/bin/sh
-exec java -jar arx-cli.jar $*
+exec "@@JAVAEXECUTABLE@@" -jar "@@INSTALLDIR@@/arx-@@VERSION@@-cli.jar" $*

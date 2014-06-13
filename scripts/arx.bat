@@ -1,2 +1,2 @@
 @ECHO OFF
-java -jar arx-cli.jar %*
+"@@JAVAEXECUTABLE@@" -jar "@@INSTALLDIR@@\arx-@@VERSION@@-cli.jar" %*
