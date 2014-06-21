@@ -197,7 +197,7 @@ public class CommandLineInterface {
 
         final String matchContentInParenthesis = "\\((.*?)\\)";
         final String matchContentInParenthesisCommaSepareted = "\\((.*?)" + SEPARATOR_CRITERIA + "(.*?)\\)";
-        final String k_anonymityRegEx = "(\\d)-ANONYMITY";
+        final String k_anonymityRegEx = "(\\d*?)-ANONYMITY";
         final String d_presenceRegEx = matchContentInParenthesisCommaSepareted + "-PRESENCE";
         final String l_diversityRegEx = "-" + matchContentInParenthesis + "-DIVERSITY";
         final String l_diversityRegEx_Recursive = "-" + matchContentInParenthesisCommaSepareted + "-DIVERSITY";
