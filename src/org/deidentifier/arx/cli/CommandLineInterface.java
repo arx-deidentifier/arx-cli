@@ -205,6 +205,8 @@ public class CommandLineInterface {
 
         for (String criterionString : criteriaOption) {
 
+            int numCriteria = criteria.size();
+
             String key = null;
             String value = null;
 
@@ -225,7 +227,12 @@ public class CommandLineInterface {
             pattern = Pattern.compile(k_anonymityRegEx, Pattern.CASE_INSENSITIVE);
             matcher = pattern.matcher(value);
             while (matcher.find()) {
-                final int k = Integer.parseInt(matcher.group(1));
+                int k = -1;
+                try {
+                    k = Integer.parseInt(matcher.group(1));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("invalid number format for k-anonymity: " + matcher.group(1));
+                }
                 final PrivacyCriterion criterion = new KAnonymity(k);
                 criteria.add(criterion);
             }
@@ -296,6 +303,11 @@ public class CommandLineInterface {
                 final PrivacyCriterion criterion = new EqualDistanceTCloseness(key, t);
                 criteria.add(criterion);
             }
+
+            if (numCriteria == criteria.size()) {
+                throw new IllegalArgumentException("malformed criteria string: " + criterionString);
+            }
+
         }
 
         return criteria;
