@@ -445,6 +445,7 @@ public class CommandLineInterface {
      */
     private void run(final String[] args) {
         final OptionParser parser = new OptionParser();
+        parser.formatHelpWith(new ArxHelpFormatter());
 
         // define options
 
