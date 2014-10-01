@@ -57,7 +57,6 @@ import org.deidentifier.arx.criteria.HierarchicalDistanceTCloseness;
 import org.deidentifier.arx.criteria.KAnonymity;
 import org.deidentifier.arx.criteria.PrivacyCriterion;
 import org.deidentifier.arx.criteria.RecursiveCLDiversity;
-import org.deidentifier.arx.gui.view.impl.wizard.ImportWizardModel;
 
 import com.carrotsearch.hppc.CharIntOpenHashMap;
 import com.carrotsearch.hppc.IntIntOpenHashMap;
