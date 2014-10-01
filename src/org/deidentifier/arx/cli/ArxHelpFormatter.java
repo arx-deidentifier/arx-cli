@@ -58,6 +58,8 @@ public class ArxHelpFormatter implements HelpFormatter {
 
             line.append(System.getProperty("line.separator"));
             return line.toString();
-        } else return "";
+        } else {
+            return "";
+        }
     }
 }
