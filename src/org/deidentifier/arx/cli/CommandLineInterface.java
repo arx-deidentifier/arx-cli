@@ -131,7 +131,7 @@ public class CommandLineInterface {
      * -r
      * 
      * --separator [char|DETECT]
-     * -sep
+     * -sp
      * 
      * --practicalmonotonicity [TRUE|FALSE]
      * -pm
@@ -505,7 +505,7 @@ public class CommandLineInterface {
                                                               .ofType(String.class);
 
         // separator
-        final OptionSpec<String> separatorOption = parser.acceptsAll(Arrays.asList("sep", "separator"),
+        final OptionSpec<String> separatorOption = parser.acceptsAll(Arrays.asList("sp", "separator"),
                                                                      "seperator used in the sepcified files; if omitted ';' is assumed. Syntax: [char|DETECT]")
                                                          .withRequiredArg()
                                                          .ofType(String.class)
