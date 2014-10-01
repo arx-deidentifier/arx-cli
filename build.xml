@@ -2,7 +2,7 @@
 <project default="create_run_jar" name="Create Runnable Jar for Project arx-cli">
 
     <!-- defines the version number -->
-    <property name="arx.version" value="2.1.1" />
+    <property name="arx.version" value="2.3.0" />
 
     <property name="arx.workspace" value="C:/workspace/arx/" />
 
@@ -25,6 +25,7 @@
             <filename name="**/poi-ooxml-schemas-3.10-FINAL-20140208.jar" />
             <filename name="**/postgresql-9.3-1101.jdbc41.jar" />
             <filename name="**/sqlite-jdbc-3.7.2.jar" />
+            <filename name="**/hppc-0.6.0.jar" />
         </or>
     </fileset>
 

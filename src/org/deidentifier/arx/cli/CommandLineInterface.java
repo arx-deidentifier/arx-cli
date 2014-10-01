@@ -17,7 +17,9 @@
  */
 package org.deidentifier.arx.cli;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -55,6 +57,10 @@ import org.deidentifier.arx.criteria.HierarchicalDistanceTCloseness;
 import org.deidentifier.arx.criteria.KAnonymity;
 import org.deidentifier.arx.criteria.PrivacyCriterion;
 import org.deidentifier.arx.criteria.RecursiveCLDiversity;
+import org.deidentifier.arx.gui.view.impl.wizard.ImportWizardModel;
+
+import com.carrotsearch.hppc.CharIntOpenHashMap;
+import com.carrotsearch.hppc.IntIntOpenHashMap;
 
 /**
  * A simple command-line client
@@ -297,20 +303,78 @@ public class CommandLineInterface {
     }
 
     /**
-     * Parses the separator option and returns the seperator char.
+     * Parses the separator option and returns the separator char.
      * 
      * @param separatorOption
+     * @param input
      * @return
+     * @throws IOException 
      */
-    private char parseSeparator(final String separatorOption) {
+    private char parseSeparator(final String separatorOption, File input) throws IOException {
         if (separatorOption.length() == 1) {
             return separatorOption.charAt(0);
         } else if (separatorOption.equalsIgnoreCase("DETECT")) {
-            // TODO: Implement automatic detection
-            throw new UnsupportedOperationException("automatic detection of seperator is currently not supported.");
+            return detectSeparator(input);
         } else {
             throw new IllegalArgumentException("only a single character or the keyword 'DETECT' is allowed");
         }
+    }
+
+    /**
+     *
+     * Tries to detect the used separator and returns it. If it can not detect a separator ';' will be returned.
+     * 
+     * @param file
+     * @return
+     * @throws IOException
+     */
+    private char detectSeparator(File file) throws IOException {
+
+        char[] seps = { ';', ',', '|', '\t' };
+        int maxLines = 100;
+
+        final BufferedReader r = new BufferedReader(new FileReader(file));
+        final IntIntOpenHashMap map = new IntIntOpenHashMap();
+        final CharIntOpenHashMap separators = new CharIntOpenHashMap();
+        for (int i = 0; i < seps.length; i++) {
+            separators.put(seps[i], i);
+        }
+        int count = 0;
+
+        /* Iterate over data */
+        String line = r.readLine();
+        while ((count < maxLines) && (line != null)) {
+
+            /* Iterate over line character by character */
+            final char[] a = line.toCharArray();
+            for (final char c : a) {
+                if (separators.containsKey(c)) {
+                    map.putOrAdd(separators.get(c), 0, 1);
+                }
+            }
+            line = r.readLine();
+            count++;
+        }
+        r.close();
+
+        if (map.isEmpty()) {
+            return seps[0];
+        }
+
+        /* Check which separator was used the most */
+        int selection = 0;
+        int max = Integer.MIN_VALUE;
+        final int[] keys = map.keys;
+        final int[] values = map.values;
+        final boolean[] allocated = map.allocated;
+        for (int i = 0; i < allocated.length; i++) {
+            if (allocated[i] && values[i] > max) {
+                max = values[i];
+                selection = keys[i];
+            }
+        }
+
+        return seps[selection];
     }
 
     /**
@@ -463,14 +527,15 @@ public class CommandLineInterface {
                 System.exit(0);
             }
 
-            final char separator = parseSeparator(options.valueOf(separatorOption));
+            final File input = options.valueOf(fileOption);
+            final char separator = parseSeparator(options.valueOf(separatorOption), input);
+
+            final String database = options.valueOf(databaseOption);
+
             final boolean practicalMonotonicity = options.valueOf(practicalOption);
             final Map<String, Hierarchy> hierarchies = parseHierarchies(Arrays.asList(ParseUtil.splitEscapedStringBySeparator(options.valueOf(hierarchyOption),
                                                                                                                               SEPARATOR_OPTION)),
                                                                         separator);
-
-            final File input = options.valueOf(fileOption);
-            final String database = options.valueOf(databaseOption);
 
             final Data data = buildDataObject(input, database, separator);
 
