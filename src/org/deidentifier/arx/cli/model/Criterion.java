@@ -7,20 +7,20 @@ import java.util.List;
 import org.deidentifier.arx.cli.ParseUtil;
 
 /**
- * Base class for the criteria
+ * Base class for the criteria.
+ *
  * @author Fabian Prasser
  * @author Florian Kohlmayer
  */
 public abstract class Criterion {
 
     /**
-     * 
      * Creates a list of Criterion objects from the given criteria string.
-     * 
-     * @param criteria
-     * @param seperator
-     * @return
-     * @throws ParseException
+     *
+     * @param criteria the criteria
+     * @param seperator the seperator
+     * @return the list
+     * @throws ParseException the parse exception
      */
     public static List<Criterion> create(String criteria, char seperator) throws ParseException {
         // cleanup string remove potential leading [ and trailing ]
@@ -105,6 +105,9 @@ public abstract class Criterion {
         return criteriaModel;
     }
 
+    /* (non-Javadoc)
+     * @see java.lang.Object#toString()
+     */
     @Override
     public abstract String toString();
 }

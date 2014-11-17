@@ -4,18 +4,18 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The model for k-anonymity
- * 
+ * The model for k-anonymity.
+ *
  * @author Fabian Prasser
  * @author Florian Kohlmayer
- * 
  */
 public class KAnonymity extends Criterion {
 
     /**
-     * Parses the given criterion string and returns the model
-     * @param criterion
-     * @return
+     * Parses the given criterion string and returns the model.
+     *
+     * @param criterion the criterion
+     * @return the criterion
      */
     public static Criterion parse(String criterion) {
         matcher = pattern.matcher(criterion);
@@ -27,10 +27,16 @@ public class KAnonymity extends Criterion {
         }
     }
 
+    /** The Constant name. */
     private static final String  name;
+    
+    /** The Constant regex. */
     private static final String  regex;
+    
+    /** The Constant pattern. */
     private static final Pattern pattern;
 
+    /** The matcher. */
     private static Matcher       matcher;
 
     static {
@@ -39,12 +45,21 @@ public class KAnonymity extends Criterion {
         pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
     }
 
+    /** The k. */
     private final int            k;
 
+    /**
+     * Instantiates a new k anonymity.
+     *
+     * @param k the k
+     */
     public KAnonymity(int k) {
         this.k = k;
     }
 
+    /* (non-Javadoc)
+     * @see java.lang.Object#equals(java.lang.Object)
+     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -63,10 +78,18 @@ public class KAnonymity extends Criterion {
         return true;
     }
 
+    /**
+     * Gets the k.
+     *
+     * @return the k
+     */
     public int getK() {
         return k;
     }
 
+    /* (non-Javadoc)
+     * @see java.lang.Object#hashCode()
+     */
     @Override
     public int hashCode() {
         final int prime = 31;
@@ -75,6 +98,9 @@ public class KAnonymity extends Criterion {
         return result;
     }
 
+    /* (non-Javadoc)
+     * @see org.deidentifier.arx.cli.model.Criterion#toString()
+     */
     @Override
     public String toString() {
         return k + name;

@@ -62,22 +62,41 @@ import com.carrotsearch.hppc.CharIntOpenHashMap;
 import com.carrotsearch.hppc.IntIntOpenHashMap;
 
 /**
- * A simple command-line client
- * 
+ * A simple command-line client.
+ *
  * @author Fabian Prasser
  * @author Florian Kohlmayer
- * 
  */
 public class CommandLineInterface {
 
+    /**
+     * The Enum Metric.
+     */
     public static enum Metric {
+
+        /** The aecs. */
         AECS,
+
+        /** The dm. */
         DM,
+
+        /** The dmstar. */
         DMSTAR,
+
+        /** The entropy. */
         ENTROPY,
+
+        /** The height. */
         HEIGHT,
+
+        /** The nmentropy. */
         NMENTROPY,
-        PREC
+
+        /** The prec. */
+        PREC,
+
+        /** The nmprec. */
+        NMPREC
     }
 
     /**
@@ -91,25 +110,25 @@ public class CommandLineInterface {
     }
 
     /**
-     * --quasiidentifying [attributname1,attributname2,...]
+     * --quasiidentifying [attribute1,attribute2,...]
      * -qi
      * 
-     * --sensitive [attributname1,attributname2,...]
+     * --sensitive [attribute1,attribute2,...]
      * -se
      * 
-     * --insensitive [attributname1,attributname2,...]
+     * --insensitive [attribute1,attribute2,...]
      * -is
      * 
-     * --identifying [attributname1,attributname2,...]
+     * --identifying [attribute1,attribute2,...]
      * -id
      * 
-     * --hierarchies [attributname1=filename1,attributname2=filename2]
+     * --hierarchies [attribute1=filename1,attribute2=filename2]
      * -h
      * 
-     * --datatype [attributname1=STRING|DECIMAL(format)|INTEGER|DATE(format)]
+     * --datatype [attribute1=STRING|DECIMAL(format)|INTEGER|DATE(format)]
      * -d
      * 
-     * --criteria [x-ANONYMITY,(x,y)-PRESENCE,attributname1=DISTINCT|ENTROPY|RECURSIVE-(x|x,y)-DIVERSITY,attributname2=HIERARCHICAL|EQUALDISTANCE-(x)-CLOSENESS]
+     * --criteria [x-ANONYMITY,(x,y)-PRESENCE,attribute1=DISTINCT|ENTROPY|RECURSIVE-(x|x,y)-DIVERSITY,attribute2=HIERARCHICAL|EQUALDISTANCE-(x)-CLOSENESS]
      * -c
      * 
      * --metric [DM|DMSTAR|ENTROPY|HEIGHT|NMENTROPY|PREC|AECS]
@@ -141,8 +160,10 @@ public class CommandLineInterface {
 
     public static final char SEPARATOR_OPTION    = ',';
 
+    /** The Constant SEPARATOR_KEY_VALUE. */
     public static final char SEPARATOR_KEY_VALUE = '=';
 
+    /** The Constant SEPARATOR_CRITERIA. */
     public static final char SEPARATOR_CRITERIA  = ';';
 
     /**
@@ -150,12 +171,12 @@ public class CommandLineInterface {
      * If the file is not null, the data object will be created from the given file, using the given separator as separator.
      * If the file is null and the database string is not null, the data object will be created from the given database.
      * If both, file and database string are null, STDIN will be used for creating the data object.
-     * 
-     * @param input
-     * @param database
-     * @param separator
-     * @return
-     * @throws IOException
+     *
+     * @param input the input
+     * @param database the database
+     * @param separator the separator
+     * @return the data
+     * @throws IOException Signals that an I/O exception has occurred.
      */
     private Data buildDataObject(final File input, final String database, final char separator) throws IOException {
         // build data object
@@ -176,12 +197,68 @@ public class CommandLineInterface {
     }
 
     /**
-     * Creates the list of privacy criteria from the given list of criteria
-     * 
-     * @param criteriaOption
-     * @param hierarchies
-     * @param subset
-     * @return
+     * Tries to detect the used separator and returns it. If it can not detect a separator ';' will be returned.
+     *
+     * @param file the file
+     * @return the char
+     * @throws IOException Signals that an I/O exception has occurred.
+     */
+    private char detectSeparator(File file) throws IOException {
+
+        char[] seps = { ';', ',', '|', '\t' };
+        int maxLines = 100;
+
+        final BufferedReader r = new BufferedReader(new FileReader(file));
+        final IntIntOpenHashMap map = new IntIntOpenHashMap();
+        final CharIntOpenHashMap separators = new CharIntOpenHashMap();
+        for (int i = 0; i < seps.length; i++) {
+            separators.put(seps[i], i);
+        }
+        int count = 0;
+
+        /* Iterate over data */
+        String line = r.readLine();
+        while ((count < maxLines) && (line != null)) {
+
+            /* Iterate over line character by character */
+            final char[] a = line.toCharArray();
+            for (final char c : a) {
+                if (separators.containsKey(c)) {
+                    map.putOrAdd(separators.get(c), 0, 1);
+                }
+            }
+            line = r.readLine();
+            count++;
+        }
+        r.close();
+
+        if (map.isEmpty()) {
+            return seps[0];
+        }
+
+        /* Check which separator was used the most */
+        int selection = 0;
+        int max = Integer.MIN_VALUE;
+        final int[] keys = map.keys;
+        final int[] values = map.values;
+        final boolean[] allocated = map.allocated;
+        for (int i = 0; i < allocated.length; i++) {
+            if (allocated[i] && (values[i] > max)) {
+                max = values[i];
+                selection = keys[i];
+            }
+        }
+
+        return seps[selection];
+    }
+
+    /**
+     * Creates the list of privacy criteria from the given list of criteria.
+     *
+     * @param criteriaOption the criteria option
+     * @param hierarchies the hierarchies
+     * @param subset the subset
+     * @return the list
      */
     private List<PrivacyCriterion> parseCriteria(final List<Criterion> criteriaOption,
                                                  final Map<String, Hierarchy> hierarchies,
@@ -235,9 +312,9 @@ public class CommandLineInterface {
 
     /**
      * Creates a map from the option string containing the attribute names as keys and the corresponding data types as values.
-     * 
-     * @param datatypeOption
-     * @return
+     *
+     * @param datatypeOption the datatype option
+     * @return the map
      */
     private Map<String, DataType<?>> parseDataTypes(final List<String> datatypeOption) {
         final Map<String, DataType<?>> datatypes = new HashMap<String, DataType<?>>();
@@ -279,11 +356,11 @@ public class CommandLineInterface {
 
     /**
      * Creates a map from the option string containing the attribute names as keys and the corresponding hierarchies as values.
-     * 
-     * @param hierarchyOption
-     * @param seperator
-     * @return
-     * @throws IOException
+     *
+     * @param hierarchyOption the hierarchy option
+     * @param seperator the seperator
+     * @return the map
+     * @throws IOException Signals that an I/O exception has occurred.
      */
     private Map<String, Hierarchy> parseHierarchies(final List<String> hierarchyOption, final char seperator) throws IOException {
         final Map<String, Hierarchy> hierarchies = new HashMap<String, Hierarchy>();
@@ -303,11 +380,11 @@ public class CommandLineInterface {
 
     /**
      * Parses the separator option and returns the separator char.
-     * 
-     * @param separatorOption
-     * @param input
-     * @return
-     * @throws IOException 
+     *
+     * @param separatorOption the separator option
+     * @param input the input
+     * @return the char
+     * @throws IOException Signals that an I/O exception has occurred.
      */
     private char parseSeparator(final String separatorOption, File input) throws IOException {
         if (separatorOption.length() == 1) {
@@ -320,72 +397,14 @@ public class CommandLineInterface {
     }
 
     /**
-     *
-     * Tries to detect the used separator and returns it. If it can not detect a separator ';' will be returned.
-     * 
-     * @param file
-     * @return
-     * @throws IOException
-     */
-    private char detectSeparator(File file) throws IOException {
-
-        char[] seps = { ';', ',', '|', '\t' };
-        int maxLines = 100;
-
-        final BufferedReader r = new BufferedReader(new FileReader(file));
-        final IntIntOpenHashMap map = new IntIntOpenHashMap();
-        final CharIntOpenHashMap separators = new CharIntOpenHashMap();
-        for (int i = 0; i < seps.length; i++) {
-            separators.put(seps[i], i);
-        }
-        int count = 0;
-
-        /* Iterate over data */
-        String line = r.readLine();
-        while ((count < maxLines) && (line != null)) {
-
-            /* Iterate over line character by character */
-            final char[] a = line.toCharArray();
-            for (final char c : a) {
-                if (separators.containsKey(c)) {
-                    map.putOrAdd(separators.get(c), 0, 1);
-                }
-            }
-            line = r.readLine();
-            count++;
-        }
-        r.close();
-
-        if (map.isEmpty()) {
-            return seps[0];
-        }
-
-        /* Check which separator was used the most */
-        int selection = 0;
-        int max = Integer.MIN_VALUE;
-        final int[] keys = map.keys;
-        final int[] values = map.values;
-        final boolean[] allocated = map.allocated;
-        for (int i = 0; i < allocated.length; i++) {
-            if (allocated[i] && values[i] > max) {
-                max = values[i];
-                selection = keys[i];
-            }
-        }
-
-        return seps[selection];
-    }
-
-    /**
      * Parses the subset option and creates the corresponding subset.
-     * 
-     * 
-     * @param subsetOption
-     * @param separator
-     * @param data
-     * @return
-     * @throws ParseException
-     * @throws IOException
+     *
+     * @param subsetOption the subset option
+     * @param separator the separator
+     * @param data the data
+     * @return the data subset
+     * @throws ParseException the parse exception
+     * @throws IOException Signals that an I/O exception has occurred.
      */
     private DataSubset parseSubset(final String subsetOption, final char separator, final Data data) throws ParseException, IOException {
 
@@ -418,8 +437,8 @@ public class CommandLineInterface {
 
     /**
      * Parse the command line and anonymize.
-     * 
-     * @param args
+     *
+     * @param args the args
      */
     private void run(final String[] args) {
         final OptionParser parser = new OptionParser();
@@ -552,22 +571,25 @@ public class CommandLineInterface {
             org.deidentifier.arx.metric.Metric<?> metric = null;
             switch (mValue) {
             case PREC:
-                metric = org.deidentifier.arx.metric.Metric.createPrecisionMetric();
+                metric = org.deidentifier.arx.metric.Metric.createPrecisionMetric(true);
+                break;
+            case NMPREC:
+                metric = org.deidentifier.arx.metric.Metric.createPrecisionMetric(false);
                 break;
             case HEIGHT:
                 metric = org.deidentifier.arx.metric.Metric.createHeightMetric();
                 break;
             case DMSTAR:
-                metric = org.deidentifier.arx.metric.Metric.createDMStarMetric();
+                metric = org.deidentifier.arx.metric.Metric.createDiscernabilityMetric(true);
                 break;
             case DM:
-                metric = org.deidentifier.arx.metric.Metric.createDMMetric();
+                metric = org.deidentifier.arx.metric.Metric.createDiscernabilityMetric(false);
                 break;
             case ENTROPY:
-                metric = org.deidentifier.arx.metric.Metric.createEntropyMetric();
+                metric = org.deidentifier.arx.metric.Metric.createEntropyMetric(true);
                 break;
             case NMENTROPY:
-                metric = org.deidentifier.arx.metric.Metric.createNMEntropyMetric();
+                metric = org.deidentifier.arx.metric.Metric.createEntropyMetric(false);
                 break;
             case AECS:
                 metric = org.deidentifier.arx.metric.Metric.createAECSMetric();
@@ -654,7 +676,6 @@ public class CommandLineInterface {
         } catch (final Exception e) {
             try {
                 System.err.println(e.getLocalizedMessage());
-                e.printStackTrace(); // TODO: for debugging only
                 parser.printHelpOn(System.out);
                 System.exit(1);
             } catch (final IOException e1) {

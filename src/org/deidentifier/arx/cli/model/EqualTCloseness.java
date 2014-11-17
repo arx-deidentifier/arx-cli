@@ -7,30 +7,31 @@ import java.util.regex.Pattern;
 import org.deidentifier.arx.cli.ParseUtil;
 
 /**
- * The model for t-closeness with equal-distance EMD
- * 
+ * The model for t-closeness with equal-distance EMD.
+ *
  * @author Fabian Prasser
  * @author Florian Kohlmayer
- * 
  */
 public class EqualTCloseness extends Criterion {
 
     /**
-     * Parses the given criterion string and returns the model
-     * @param criterion
-     * @return
-     * @throws ParseException
+     * Parses the given criterion string and returns the model.
+     *
+     * @param criterion the criterion
+     * @return the criterion
+     * @throws ParseException the parse exception
      */
     public static Criterion parse(String criterion) throws ParseException {
         return parse(null, criterion, 'X');
     }
 
     /**
-     * Parses the given criterion string and returns the model
-     * @param criterion
-     * @param seperatorKeyValue
-     * @return
-     * @throws ParseException
+     * Parses the given criterion string and returns the model.
+     *
+     * @param criterion the criterion
+     * @param seperatorKeyValue the seperator key value
+     * @return the criterion
+     * @throws ParseException the parse exception
      */
     public static Criterion parse(String criterion, char seperatorKeyValue) throws ParseException {
         String[] split = ParseUtil.splitEscapedStringBySeparator(criterion, seperatorKeyValue);
@@ -43,11 +44,12 @@ public class EqualTCloseness extends Criterion {
     }
 
     /**
-     * Parses the given criterion string and returns the model
-     * @param attribute
-     * @param criterion
-     * @param seperatorKeyValue
-     * @return
+     * Parses the given criterion string and returns the model.
+     *
+     * @param attribute the attribute
+     * @param criterion the criterion
+     * @param seperatorKeyValue the seperator key value
+     * @return the criterion
      */
     private static Criterion parse(String attribute, String criterion, char seperatorKeyValue) {
         matcher = pattern.matcher(criterion);
@@ -59,11 +61,19 @@ public class EqualTCloseness extends Criterion {
         }
     }
 
+    /** The Constant name. */
     private static final String  name;
+    
+    /** The Constant prefix. */
     private static final String  prefix;
+    
+    /** The Constant regex. */
     private static final String  regex;
+    
+    /** The Constant pattern. */
     private static final Pattern pattern;
 
+    /** The matcher. */
     private static Matcher       matcher;
 
     static {
@@ -73,16 +83,31 @@ public class EqualTCloseness extends Criterion {
         pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
     }
 
+    /** The t. */
     private final double         t;
+    
+    /** The seperator key value. */
     private final char           seperatorKeyValue;
+    
+    /** The attribute. */
     private final String         attribute;
 
+    /**
+     * Instantiates a new equal t closeness.
+     *
+     * @param attribute the attribute
+     * @param t the t
+     * @param seperatorKeyValue the seperator key value
+     */
     public EqualTCloseness(String attribute, double t, char seperatorKeyValue) {
         this.attribute = attribute;
         this.t = t;
         this.seperatorKeyValue = seperatorKeyValue;
     }
 
+    /* (non-Javadoc)
+     * @see java.lang.Object#equals(java.lang.Object)
+     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -108,14 +133,27 @@ public class EqualTCloseness extends Criterion {
         return true;
     }
 
+    /**
+     * Gets the attribute.
+     *
+     * @return the attribute
+     */
     public String getAttribute() {
         return attribute;
     }
 
+    /**
+     * Gets the t.
+     *
+     * @return the t
+     */
     public double getT() {
         return t;
     }
 
+    /* (non-Javadoc)
+     * @see java.lang.Object#hashCode()
+     */
     @Override
     public int hashCode() {
         final int prime = 31;
@@ -127,6 +165,9 @@ public class EqualTCloseness extends Criterion {
         return result;
     }
 
+    /* (non-Javadoc)
+     * @see org.deidentifier.arx.cli.model.Criterion#toString()
+     */
     @Override
     public String toString() {
         return (attribute == null ? "" : attribute + seperatorKeyValue) + prefix + "(" + t + ")" + name;

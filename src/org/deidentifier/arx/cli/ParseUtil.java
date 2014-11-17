@@ -1,21 +1,21 @@
 package org.deidentifier.arx.cli;
 
 import java.util.regex.Pattern;
+
 /**
- * A util class
- * 
+ * A util class.
+ *
  * @author Fabian Prasser
  * @author Florian Kohlmayer
- * 
  */
 public class ParseUtil {
 
     /**
      * Splits the splitString by means of the separator. Escaping via backslash allowed, the escape character will be removed.
-     * 
-     * @param splitString
-     * @param separator
-     * @return
+     *
+     * @param splitString the split string
+     * @param separator the separator
+     * @return the string[]
      */
     public static String[] splitEscapedStringBySeparator(final String splitString, final char separator) {
         if ((splitString != null) && (splitString.length() > 0)) {
@@ -35,10 +35,10 @@ public class ParseUtil {
 
     /**
      * Escapes the given string. All occurrences of separator will be escaped via a backslash.
-     * 
-     * @param string
-     * @param separator
-     * @return
+     *
+     * @param string the string
+     * @param separator the separator
+     * @return the string
      */
     public static String toEscapedString(final String string, final char separator) {
         if ((string != null) && (string.length() > 0)) {
@@ -49,7 +49,10 @@ public class ParseUtil {
         }
     }
 
+    /** The Constant SEPARATOR_CRITERIA. */
     public static final char SEPARATOR_CRITERIA  = ',';
+
+    /** The Constant SEPARATOR_KEY_VALUE. */
     public static final char SEPARATOR_KEY_VALUE = '=';
 
 }

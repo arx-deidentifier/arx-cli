@@ -8,9 +8,19 @@ import joptsimple.HelpFormatter;
 import joptsimple.NonOptionArgumentSpec;
 import joptsimple.OptionDescriptor;
 
+/**
+ * The Class ArxHelpFormatter.
+ */
 public class ArxHelpFormatter implements HelpFormatter {
+
+    /** The Constant NEWLINE. */
     private static final String NEWLINE = System.getProperty("line.separator");
 
+    /*
+     * (non-Javadoc)
+     * 
+     * @see joptsimple.HelpFormatter#format(java.util.Map)
+     */
     @Override
     public String format(Map<String, ? extends OptionDescriptor> options) {
         StringBuilder buffer = new StringBuilder();
@@ -23,6 +33,12 @@ public class ArxHelpFormatter implements HelpFormatter {
         return buffer.toString();
     }
 
+    /**
+     * Line for.
+     *
+     * @param descriptor the descriptor
+     * @return the string
+     */
     private String lineFor(OptionDescriptor descriptor) {
 
         if (!(descriptor instanceof NonOptionArgumentSpec<?>)) {
