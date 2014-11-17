@@ -1,7 +1,10 @@
 package org.deidentifier.arx.cli;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 import joptsimple.HelpFormatter;
@@ -25,11 +28,22 @@ public class ArxHelpFormatter implements HelpFormatter {
     public String format(Map<String, ? extends OptionDescriptor> options) {
         StringBuilder buffer = new StringBuilder();
         buffer.append("Usage:" + NEWLINE);
+
+        // remove duplicates
         HashSet<OptionDescriptor> set = new HashSet<OptionDescriptor>(options.values());
-        // TODO sort options lexicographically
-        for (OptionDescriptor each : set) {
-            buffer.append(lineFor(each));
+
+        List<String> optionStrings = new ArrayList<String>();
+        for (OptionDescriptor option : set) {
+            optionStrings.add(lineFor(option));
         }
+
+        // sort options lexicographically
+        Collections.sort(optionStrings);
+
+        for (String string : optionStrings) {
+            buffer.append(string);
+        }
+
         return buffer.toString();
     }
 
@@ -45,7 +59,7 @@ public class ArxHelpFormatter implements HelpFormatter {
 
             StringBuilder line = new StringBuilder();
 
-            String[] optionString = new String[2]; // TODO: Only short and long option allowed
+            String[] optionString = new String[2];
             Collection<String> options = descriptor.options();
             for (String option : options) {
                 if (option.length() < 3) { // TODO: Ugly hack
