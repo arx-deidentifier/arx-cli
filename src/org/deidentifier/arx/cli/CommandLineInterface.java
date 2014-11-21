@@ -21,6 +21,11 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,6 +34,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.StringTokenizer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -42,6 +48,7 @@ import org.deidentifier.arx.ARXResult;
 import org.deidentifier.arx.AttributeType.Hierarchy;
 import org.deidentifier.arx.Data;
 import org.deidentifier.arx.DataSelector;
+import org.deidentifier.arx.DataSource;
 import org.deidentifier.arx.DataSubset;
 import org.deidentifier.arx.DataType;
 import org.deidentifier.arx.cli.model.Criterion;
@@ -177,23 +184,93 @@ public class CommandLineInterface {
      * @param separator the separator
      * @return the data
      * @throws IOException Signals that an I/O exception has occurred.
+     * @throws SQLException
      */
-    private Data buildDataObject(final File input, final String database, final char separator) throws IOException {
+    private Data buildDataObject(final File input, final String database, final char separator) throws IOException, SQLException {
         // build data object
-
-        // TODO: for DataSource a addAllCoulumns could be introduced
         Data data = null;
-
         if (input != null) { // read from file
             data = Data.create(input, separator);
         } else if ((database != null) && (database.length() > 0)) { // read from db
-            // TODO: Implement JDBC datasource
-            throw new UnsupportedOperationException("import from database currently not supported");
+            DataSource source = getDBDatasource(database);
+            data = Data.create(source);
         } else { // read from console
             // format as CSV!
             data = Data.create(System.in, separator);
         }
         return data;
+    }
+
+    /**
+     * Returns the datasource build from the given string.
+     * @param database
+     * @return
+     * @throws SQLException
+     */
+    private DataSource getDBDatasource(String database) throws SQLException {
+
+        Map<String, String> kvMap = new HashMap<String, String>();
+        StringTokenizer st = new StringTokenizer(database, "=,");
+        while (st.hasMoreTokens()) {
+            String key = st.nextToken().toUpperCase();
+            String value = st.nextToken();
+            kvMap.put(key, value);
+        }
+
+        String dbType = kvMap.get("TYPE");
+        String url = kvMap.get("URL");
+        String port = kvMap.get("PORT");
+        String username = kvMap.get("USER");
+        String password = kvMap.get("PASSWORD");
+        String db = kvMap.get("DATABASE");
+        String table = kvMap.get("TABLE");
+
+        if (dbType == null || dbType.isEmpty() || url == null || url.isEmpty() || port == null || port.isEmpty() || username == null || username.isEmpty() || password == null || password.isEmpty()
+            || db == null || db.isEmpty() || table == null || table.isEmpty()) {
+            throw new IllegalArgumentException("database string is incomplete: " + database);
+        }
+
+        String urlString = "";
+        // Load JDBC classes and build url string
+        try {
+
+            if (dbType.equalsIgnoreCase("SQLLITE")) {
+                Class.forName("org.sqlite.JDBC");
+                urlString = "jdbc:sqlite:" + url;
+            } else if (dbType.equalsIgnoreCase("MYSQL")) {
+                Class.forName("com.mysql.jdbc.Driver");
+                urlString = "jdbc:mysql://" + url + ":" + port + "/" + db;
+            } else if (dbType.equalsIgnoreCase("POSTGRESQL")) {
+                Class.forName("org.postgresql.Driver");
+                urlString = "jdbc:postgresql://" + url + ":" + port + "/" + db;
+            }
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException("No JDBC driver for selected connection type");
+        }
+
+        List<String> columnNames = new ArrayList<String>();
+
+        Connection connection;
+        try {
+            connection = DriverManager.getConnection(urlString, username, password);
+            // get all columnnames from a given table
+            DatabaseMetaData meta = connection.getMetaData();
+            ResultSet rs = meta.getColumns(null, null, table, null);
+            while (rs.next()) {
+                columnNames.add(rs.getString("COLUMN_NAME"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        DataSource source = DataSource.createJDBCSource(urlString, username, password, table);
+
+        for (String column : columnNames) {
+            source.addColumn(column);
+        }
+
+        return source;
+
     }
 
     /**
@@ -558,6 +635,9 @@ public class CommandLineInterface {
             final Data data = buildDataObject(input, database, separator);
 
             final DataSubset subset = parseSubset(options.valueOf(researchSubsetOption), separator, data);
+            if (!options.has(criteriaOption)) {
+                throw new IllegalArgumentException("no criteria has been specified");
+            }
             final List<PrivacyCriterion> criteria = parseCriteria(Criterion.create(options.valueOf(criteriaOption), SEPARATOR_OPTION),
                                                                   hierarchies,
                                                                   subset);
